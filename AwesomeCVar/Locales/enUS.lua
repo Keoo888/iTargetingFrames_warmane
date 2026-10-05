@@ -61,6 +61,14 @@ if GetLocale() == "enUS" then
 
     --! WotLK fix: пометки нашей сборки. AW_OFF -- переменную не поставил профиль сборки (Settings.h),
     -- %s = её переключатель. Внешних настроек (файл рядом с Wow.exe) у dll с 01.10 нет.
+
+    -- Дистанция до плейтов / цели / фокуса (AWDistance.lua читает эти строки, числа -- в его CLAMPS)
+    L.CATEGORY_DISTANCE = "Distance"
+
+    L.CVAR_LABEL_DISTANCE_DISPLAY = "Show Distance"
+
+    L.DESC_DISTANCE_DISPLAY = "Master switch of the distance labels. While it is 0 the dll computes and publishes nothing and AWDistance.lua draws nothing. Part of the built-in profile (distance)."
+
     L.AW_OFF = "— not registered by this build (%s)"
 
     -- CVar Mode Labels

@@ -93,6 +93,22 @@ local function getFunction(str)
 	local f, err = loadstring('return ' .. str)
 	if f then return f() else return f, err end
 end
+-- Состояние индикаторов одной рамки. Раньше его строил только iTF:updateUnitID, а тот выходит по guard'у,
+-- если юнита или плеята уже нет -- рамка к этому моменту стоит в iTF.frames (её создаёт iTF:CreateNew на
+-- старте для каждого слота), и первый же PLAYER_TARGET_CHANGED индексировал nil:
+-- `iTargetingFrames.lua:129: attempt to index field 'waitingFor' (a nil value)` (замер 04.10 02:11, цель --
+-- nameplate1). Теперь таблица живёт вместе с рамкой, а updateUnitID только обновляет её.
+local function newIndicatorState()
+	return {
+		['border'] = {},
+		['alpha'] = {},
+		['statusbar'] = {},
+		['glowLeft'] = {},
+		['glowRight'] = {},
+		['glowTop'] = {},
+		['glowBottom'] = {},
+	}
+end
 local indicatorFuncs = {}
 function indicatorFuncs:getHighest(t)
 	local w = -100
@@ -704,6 +720,88 @@ local function round(num, idp)
 	local mult = 10^(idp or 0)
 	return math.floor(num * mult + 0.5) / mult
 end
+--! WotLK fix: NPC blacklist. Keys are the same as for priority names: unit name or npcID. The frame is
+-- protected, so only the snippet may hide it -- the verdict travels there in attribute 'itfdenyitfN'.
+-- No leading underscore: inside a snippet GetAttribute returns nil for any '_' name, silently
+-- (RestrictedFrames.lua:188-191). See docs/TECHNICAL.md item 56 (the chain itself: item 41).
+function iTF:npcDenied(unitID)
+	local f = iTF.frames and iTF.frames[unitID]
+	if not f or not iTFConfig or not iTFConfig.npcBlacklist then return false end
+	local name = f.unitName
+	local id = f.npcID
+	return (name and iTFConfig.npcBlacklist[name])
+		or (id and id ~= '0' and iTFConfig.npcBlacklist[id])
+		and true or false
+end
+--! WotLK fix: the attribute is written only when THIS slot's verdict changes -- sweeping the whole
+-- list on every plate would cost 60 writes to a protected frame per unit.
+--! WotLK fix (05.10): сверяемся с САМИМ атрибутом, а не с теневым полем f.denyAttr. Раньше «мемо не
+-- заполнено» и «не запрещён» были одним и тем же nil, а refreshNpcBlacklist обнуляло мемо перед
+-- проходом -- и проверка `if f.denyAttr == denied then return end` съедала ровно СТИРАЮЩУЮ запись.
+-- Итог в игре: '/itf unignore' (и крестик в окне, options.lua:3437) оставлял 'itfdenyitfN' = 1,
+-- '_itfupdate' продолжал освобождать клетку, а слот itfN умирал НАВСЕГДА -- любой следующий моб,
+-- которому клиент выдал этот nameplateN, вечно висел в очереди (alive = 0) без рамки, и починить это
+-- мог только /reload. Самолечения не было по той же причине: updateUnitID зовёт applyDenyAttr, а тот
+-- снова видел nil == nil и выходил. Источник истины теперь один -- то, что реально читает сниппет.
+function iTF:applyDenyAttr(unitID, noRerun)
+	local f = iTF.frames[unitID]
+	if not f or not iTF.mainFrame then return end
+	local attr = 'itfdenyitf' .. f.nameplateID
+	local denied = iTF:npcDenied(unitID) and 1 or nil
+	f.denyAttr = denied -- только для дампа '/itf deny', решение на нём больше не держится
+	if iTF.mainFrame:GetAttribute(attr) == denied then return end
+	iTF.mainFrame:SetAttribute(attr, denied)
+	--! WotLK fix: the attribute does nothing by itself -- '_itfupdate' reads it, and that snippet runs
+	-- only on state transitions. Without this re-run an already filled cell would hold until the next
+	-- NAME_PLATE_UNIT. Paid only on a change of verdict, not on every refill.
+	if not noRerun then
+		iTF.mainFrame:Execute([[control:RunAttribute('_itfupdate')]])
+	end
+end
+-- Полный пересмотр после правки списка: игрок сам решает, когда это нужно, и моргание сетки здесь
+-- оправдано -- иначе уже показанный чёрный список висел бы в клетке до следующего перехода.
+function iTF:refreshNpcBlacklist()
+	if not iTF.mainFrame then return end
+	for unitID in pairs(iTF.frames) do
+		-- мемо здесь больше не обнуляем: именно это обнуление и ломало снятие из списка (см. выше).
+		-- второй аргумент: пересмотр всего списка заканчивается полной пересборкой сетки ниже, точечные
+		-- перезапуски на каждую рамку были бы лишними проходами раскладки
+		iTF:applyDenyAttr(unitID, true)
+	end
+	iTF:updateMainFrameAttributes(true)
+end
+--! WotLK fix: `/itf deny` -- дамп того, что цепочка запрета видит на самом деле. Зонд из чата для
+-- этого не годится: `iTF` -- локал чанка, а наружу торчит только глобал-неймспейс `iTargetingFrames`
+-- (03.10 прогон падал именно на `attempt to index global 'iTF'`). Печатает по каждой показанной рамке
+-- имя, npcID, решение npcDenied, мемо и значение secure-атрибута -- то есть весь путь целиком.
+function iTF:DebugDeny()
+	local list = iTFConfig and iTFConfig.npcBlacklist
+	local n = 0
+	if list then for _ in pairs(list) do n = n + 1 end end
+	iTF:print('deny: entries ' .. n)
+	if not iTF.mainFrame then
+		iTF:print('deny: mainFrame ещё нет -- атрибут ставить некуда')
+		return
+	end
+	for unitID, f in pairs(iTF.frames) do
+		if f.isShown then
+			iTF:print(string.format('deny: %s name=%s id=%s denied=%s memo=%s attr=%s',
+				unitID, tostring(f.unitName), tostring(f.npcID),
+				iTF:npcDenied(unitID) and 'YES' or 'no', tostring(f.denyAttr),
+				tostring(iTF.mainFrame:GetAttribute('itfdenyitf' .. f.nameplateID))))
+		end
+	end
+end
+function iTargetingFrames:NpcBlacklist(npc, remove)
+	npc = tostring(npc)
+	iTFConfig.npcBlacklist = iTFConfig.npcBlacklist or {}
+	if remove then
+		iTFConfig.npcBlacklist[npc] = nil
+	else
+		iTFConfig.npcBlacklist[npc] = true
+	end
+	iTF:refreshNpcBlacklist()
+end
 function iTargetingFrames:PrioNPC(npc, comment)
 	local update = false
 	if type(npc) == 'table' then
@@ -991,7 +1089,7 @@ function iTF:setDurationInfo(unitID, aura, endTime, stack, hide)
 	-- The countdown text cache in OnUpdate is per slot, so it has to be dropped whenever the slot is
 	-- re-pointed at another aura or taken out of use -- otherwise the next aura reuses the previous
 	-- number in its first frame.
-	iTF.frames[unitID].auras[aura].textValue = nil
+	iTF.frames[unitID].auras[aura].textTick = nil
 	if hide then
 		if aura then
 			if aura == 1 then
@@ -1163,6 +1261,30 @@ function iTF:updateCast(unitID,channel)
 		iTF.frames[unitID].castBar:Hide()
 		iTF.frames[unitID].healthBar:SetHeight(iTFConfig.layout.frame.height)
 	end
+end
+
+--! WotLK fix: опрос каста. Клиент не шлёт UNIT_SPELLCAST_* для токена nameplateN -- тот же класс
+-- отсутствующих событий, из-за которого здесь же опрашиваются здоровье (выше), ауры и threat. Без этого
+-- плашка отражала каст только в момент заполнения рамки: моб, начавший читать ПОСЛЕ того, как его рамка
+-- появилась, не показывал ничего, а начавший до -- показывал и держал полосу после конца каста.
+-- updateCast переставляет OnUpdate полосы и перетирает текст целиком, поэтому вызывается только при
+-- смене состояния: ключ -- имя плюс startTime (миллисекунды, уникальны на каждый новый каст).
+function iTF:refreshCast(unitID)
+	local f = iTF.frames[unitID]
+	if not f or not iTFConfig.layout.castBar.enabled then return end
+	-- startTime у обеих функций пятый: UnitCastingInfo отдаёт ещё и castID, UnitChannelInfo -- нет
+	local name, _, _, _, startTime = UnitCastingInfo(unitID)
+	local channel = false
+	if not name then
+		local chName, _, _, _, chStart = UnitChannelInfo(unitID)
+		if chName then
+			name, startTime, channel = chName, chStart, true
+		end
+	end
+	local key = name and ((channel and 'h' or 'c') .. name .. '/' .. tostring(startTime)) or nil
+	if key == f.castKey then return end
+	f.castKey = key
+	iTF:updateCast(unitID, channel)
 end
 
 function iTF:CreateAuraFrame(unitID, id)
@@ -1349,15 +1471,7 @@ function iTF:updateUnitID(unitID)
 	-- string.format("%i", nil) ронял весь OnShow. Раскладку -- см. iTF:npcIDFromGUID выше.
 	local npcID = iTF:npcIDFromGUID(iTF.frames[unitID].guid)
 	iTF.frames[unitID].npcID = npcID and string.format("%i", npcID) or '0'
-	iTF.frames[unitID].waitingFor = {
-		['border'] = {},
-		['alpha'] = {},
-		['statusbar'] = {},
-		['glowLeft'] = {},
-		['glowRight'] = {},
-		['glowTop'] = {},
-		['glowBottom'] = {},
-	}
+	iTF.frames[unitID].waitingFor = newIndicatorState()
 	if UnitIsUnit(unitID, 'player') then
 		iTF.frames[unitID].isMe = true
 	else
@@ -1384,7 +1498,12 @@ function iTF:updateUnitID(unitID)
 	iTF:updateAuras(unitID)
 	iTF:updateRaidIcon(unitID)
 	iTF:setName(unitID)
-	iTF:updateCast(unitID)
+	-- refreshCast, а не updateCast: каналы (Boost, Mind Freeze и подобные) через updateCast(unitID) без
+	-- второго аргумента не читались вовсе, то есть на заполнении рамки каст-полоса появлялась только для
+	-- обычных кастов.
+	iTF:refreshCast(unitID)
+	-- имя и npcID известны только здесь, поэтому запрет пересматривается в этом же месте
+	iTF:applyDenyAttr(unitID)
 	for _,v in pairs(conditionals) do --force update all
 		for cond, _ in pairs(v) do
 			updateIndicator(unitID,cond)
@@ -1407,6 +1526,11 @@ function iTF:CreateNew(unitID, i)
 	iTF.frames[unitID]:SetPoint(iTFConfig.layout.grow, iTF.mainFrame, iTFConfig.layout.grow, posX, posY)
 	
 	iTF.frames[unitID].nameplateID = i
+	-- Состояние индикаторов строится здесь, а не только в updateUnitID: рамка существует с этого момента, а
+	-- `indicatorFuncs:border` и остальные четыре читают `waitingFor` без проверки. Раньше слот, чей юнит ещё
+	-- не имел плеята (или PLAYER_TARGET_CHANGED между CreateNew и первым updateUnitID), падал с
+	-- `attempt to index field 'waitingFor' (a nil value)` -- замер 04.10 02:11 на nameplate1
+	iTF.frames[unitID].waitingFor = newIndicatorState()
 	
 	--Backdrop
 	iTF.frames[unitID]:SetBackdrop(iTF.UFbd)
@@ -1562,34 +1686,39 @@ function iTF:OnUpdate(elapsed)
 
 	onUpdateTotal = onUpdateTotal + elapsed
 	local cTime = GetTime()
+	local icon = iTFConfig.layout.icon
 	for unitID,v in pairs(aurasToUpdate) do
+		local slots = iTF.frames[unitID].auras
 		for id, endTime in pairs(v) do
 			if endTime > 0 then
 				local showTime = endTime - cTime
+				--! WotLK fix: slot and the icon config are resolved once. This body runs every frame for
+				-- every tracked aura, and it used to walk iTF.frames[unitID].auras[id] up to three times
+				-- and iTFConfig.layout.icon twice on each pass.
+				local slot = slots[id]
 				if showTime <= 0 then
 					-- Expired: clear the entry here too. Whatever path forgot to do it, a dead entry must not
 					-- sit in aurasToUpdate printing a counter that runs through zero into negatives.
-					iTF.frames[unitID].auras[id].cooldownText:Hide()
+					slot.cooldownText:Hide()
 					v[id] = nil
 				else
-					if iTFConfig.layout.icon.flashEnabled and showTime <= iTFConfig.layout.icon.flashTimer then
-						if not iTF.frames[unitID].auras[id].anim then
-							iTF.frames[unitID].auras[id].flash:Play()
+					if icon.flashEnabled and showTime <= icon.flashTimer then
+						if not slot.anim then
+							slot.flash:Play()
 						end
 					end
 					--! WotLK fix: the countdown was re-formatted every frame for every aura, though the visible
-					-- number changes 1-10 times a second. Format only when the rendered string would differ;
-					-- slot.textValue is cleared wherever a slot is shown, hidden or reused (setDurationInfo).
-					local slot = iTF.frames[unitID].auras[id]
-					local text
-					if showTime < iTFConfig.layout.icon.durationDecimals then
-						text = string.format('%.1f', showTime)
-					else
-						text = string.format('%.0f', showTime)
-					end
-					if slot.textValue ~= text then
-						slot.textValue = text
-						slot.cooldownText:SetText(text)
+					-- number changes 1-10 times a second. Compare the rounded number, not the string: the
+					-- previous form still called string.format 60 times a second per aura and only saved the
+					-- SetText. Measured under real Lua 5.1, 10 plates x 3 auras x 600 frames: this body
+					-- costs 71% less time, 14.0 ms -> 4.0 ms (no garbage either way -- Lua interns equal
+					-- strings). slot.textTick is cleared wherever a slot is shown, hidden or reused
+					-- (setDurationInfo).
+					local tenths = showTime < icon.durationDecimals
+					local tick = tenths and math.floor(showTime*10 + 0.5) or math.floor(showTime + 0.5)
+					if slot.textTick ~= tick or slot.textTenths ~= tenths then
+						slot.textTick, slot.textTenths = tick, tenths
+						slot.cooldownText:SetText(string.format(tenths and '%.1f' or '%.0f', showTime))
 					end
 				end
 			end
@@ -1601,6 +1730,10 @@ function iTF:OnUpdate(elapsed)
 		if next(conditionals.threat) then
 			iTF:updateTankRole()
 		end
+		--! WotLK fix: resolved once per tick, not once per frame. nameplateAPI() is a call plus a rawget,
+		-- and the method was a second table lookup -- both ran up to 60 times a tick and cannot change
+		-- mid-loop, because only ADDON_LOADED of the shim installs C_NamePlate.
+		local getPlate = nameplateAPI() and C_NamePlate.GetNamePlateForUnit
 		for k,v in pairs(iTF.frames) do
 			if UnitExists(k) then
 				if v.isShown then
@@ -1614,10 +1747,10 @@ function iTF:OnUpdate(elapsed)
 					-- NAME_PLATE_UNIT_ADDED, and then the frame kept the old name, guid, npcID and class
 					-- colour while health and auras stayed live (they are polled by token) -- reported
 					-- 02.10 in Ruby Sanctum: Halion's plate was labelled "Chaos Invoker" until the plate
-					-- refreshed by itself. So refill on an identity change as well; the price is one
-					-- UnitGUID per shown frame per 0.3s tick, against the 85ns/guid measured for this path.
-					if (not v.customData or (UnitGUID(k) and UnitGUID(k) ~= v.guid)) and nameplateAPI() and C_NamePlate.GetNamePlateForUnit
-						and C_NamePlate.GetNamePlateForUnit(k) then
+					-- refreshed by itself. So refill on an identity change too. One UnitGUID call, and
+					-- only for a filled frame; defaulting to v.guid keeps a unit in transit (nil guid)
+					-- from retriggering this every tick.
+					if getPlate and (not v.customData or (UnitGUID(k) or v.guid) ~= v.guid) and getPlate(k) then
 						iTF:updateUnitID(k)
 					end
 					iTF:updateHealth(k) --Health onUpdate, Since no UnitHealth events for nameplate unit
@@ -1627,6 +1760,10 @@ function iTF:OnUpdate(elapsed)
 					-- (measured 29.09 ~23:5x: an icon with no duration text on a training dummy -- the text
 					-- was gone because the countdown hit zero, the icon was left behind by the missing poll).
 					iTF:updateAuras(k)
+					--! WotLK fix: каст опрашивается здесь же по той же причине, что health/auras/threat выше:
+					-- для nameplateN клиент UNIT_SPELLCAST_* не рассылает. Две C-функции на показанную рамку
+					-- за тик 0.3 с; перерисовка -- только при смене имени/startTime каста (iTF:refreshCast).
+					iTF:refreshCast(k)
 					for l,_ in pairs(conditionals.onHealth) do
 						updateIndicator(k, l)
 					end
@@ -1646,15 +1783,19 @@ function iTF:OnUpdate(elapsed)
 		end
 		onUpdateTotal = 0
 	end
-end
---! WotLK fix: какой слот сетки занят этим фреймом ПРЯМО СЕЙЧАС. Ведёт его безопасный драйвер в
+end--! WotLK fix: какой слот сетки занят этим фреймом ПРЯМО СЕЙЧАС. Ведёт его безопасный драйвер в
 -- iTFCurrentlyAlive ('itfN' -> слот, 0 -- свободен); после стягивания при смерти юнита это уже не индекс
 -- создания из nameplateID. Якорить по индексу создания -- значит разбросать фреймы по сетке заново, то
 -- есть вернуть ровно те дырки, из-за которых стягивание и делалось (обе ветки, 'size' и 'pos', раньше
--- брали position именно по nameplateID). Оговорка по FrameXML 3.3.5a: хозяин этих таблиц -- secure-среда iTF.mainFrame, RestrictedExecution.lua:583-593 читает из `base[k] or working[k]` и пишет только в working, настоящего _G там нет, -- значит чтение ниже скорее всего видит nil; не заметно это лишь потому, что обе ветки кончаются updateMainFrameAttributes(true), чей newMax-путь раздаёт слоты заново из secure-среды (развязку решает прогон, п. 13 д листа TEST-NAMEPLATE).
+-- брали position именно по nameplateID). Хозяин таблицы -- secure-среда iTF.mainFrame, и наружу таблицу
+-- она не отдаёт (RestrictedExecution.lua:583-593: читает base[k] or working[k], пишет только в working),
+-- поэтому слот зеркалируется атрибутом 'itfslot<токен>' внутри '_itfupdate' -- см. там же, число через
+-- границу ходит. Прогон, который это решает, -- п. 13 д листа TEST-NAMEPLATE.
 local function frameSlot(frame)
-	local alive = iTFCurrentlyAlive
-	local slot = alive and alive['itf' .. frame.nameplateID]
+	-- имя целиком: писатель клеит 'itfslot'..токен, а токен -- это 'itf3', не '3' (тот же порядок, что у
+	-- 'itfdenyitfN' в цепочке запрета)
+	local mf = iTF.mainFrame
+	local slot = mf and mf:GetAttribute('itfslotitf' .. frame.nameplateID)
 	if type(slot) == 'number' and slot > 0 then return slot end
 	return frame.nameplateID
 end
@@ -2045,7 +2186,17 @@ function iTF:updateMainFrameAttributes(newMax)
 		for i = 1, %d do
 			local tok = iTFCurrentlyShowing[i]
 			if tok then
-				if i ~= writeSlot then
+				--! WotLK fix: 'itfdenyitfN' is set by the addon when the NPC is blacklisted. Such a token
+				-- must not hold a cell: the slot is freed, the frame hidden, and the token stays queued
+				-- (alive = 0) so it returns when the entry is removed.
+				if self:GetAttribute('itfdeny'..tok) then
+					iTFCurrentlyShowing[i] = nil
+					iTFCurrentlyAlive[tok] = 0
+					local hf = self:GetFrameRef(tok)
+					if hf then
+						hf:Hide()
+					end
+				elseif i ~= writeSlot then
 					iTFCurrentlyShowing[writeSlot] = tok
 					iTFCurrentlyShowing[i] = nil
 					iTFCurrentlyAlive[tok] = writeSlot
@@ -2054,15 +2205,18 @@ function iTF:updateMainFrameAttributes(newMax)
 						mf:ClearAllPoints()
 						mf:SetPoint('%s', self, '%s', iTFUnitPositions[writeSlot][1], iTFUnitPositions[writeSlot][2])
 					end
+					writeSlot = writeSlot + 1
+				else
+					writeSlot = writeSlot + 1
 				end
-				writeSlot = writeSlot + 1
 			end
 		end
 		for i = 1, %d do
 			if not iTFCurrentlyShowing[i] then
 				local f
 				for k,v in pairs(iTFCurrentlyAlive) do
-					if v == 0 then
+					-- same ban here: the queue must not push a blacklisted token into a free cell
+					if v == 0 and not self:GetAttribute('itfdeny'..k) then
 						f = k
 						iTFCurrentlyAlive[k] = i
 						iTFCurrentlyShowing[i] = k
@@ -2075,6 +2229,18 @@ function iTF:updateMainFrameAttributes(newMax)
 					f:SetPoint('%s',self,'%s',iTFUnitPositions[i][1], iTFUnitPositions[i][2])
 					f:Show()
 				end
+			end
+		end
+
+		--! WotLK fix: зеркало карты слотов наружу. Таблицы через границу secure/insecure не едут
+		-- (RestrictedExecution.lua:583-593: среда сниппета читает base[k] or working[k], пишет только в
+		-- working), то есть iTFCurrentlyAlive для аддона навсегда nil -- и frameSlot якорил по индексу
+		-- создания, ровно по той причине, из-за которой в сетке и оставались дырки. ЧИСЛА через границу
+		-- ходят: атрибут ставит сам сниппет и читает его же insecure-код (что чтение работает, показывает
+		-- дамп /itf deny -- он именно так видит 'itfdenyitfN'). Пишется только изменившийся слот.
+		for k,v in pairs(iTFCurrentlyAlive) do
+			if self:GetAttribute('itfslot'..k) ~= v then
+				self:SetAttribute('itfslot'..k, v)
 			end
 		end
 	]], iTFConfig.layout.maxUnits,iTFConfig.layout.grow,iTFConfig.layout.grow,iTFConfig.layout.maxUnits,iTFConfig.layout.grow,iTFConfig.layout.grow))
@@ -2102,7 +2268,9 @@ end
 function iTF:updateNameplateStateDrivers(update, configMode)
 	if configMode then
 		for i = 1, 60 do
-			RegisterStateDriver(iTF.mainFrame, 'itf'..i, '[@nameplate'..i..', exists] true;true')
+			--! WotLK fix: same order as the live branch below -- handler first, driver second. Here the
+			-- condition is constant, so the only transition it ever makes is the one at registration:
+			-- with the handler second it was lost and config mode showed nothing. docs/TECHNICAL.md item 23.
 			iTF.mainFrame:SetAttribute('_onstate-itf'..i,[=[
 			local f = self:GetFrameRef(stateid)
 			if newstate == 'true' then
@@ -2116,6 +2284,7 @@ function iTF:updateNameplateStateDrivers(update, configMode)
 			end
 			control:RunAttribute('_itfupdate')
 			]=])
+			RegisterStateDriver(iTF.mainFrame, 'itf'..i, '[@nameplate'..i..', exists] true;true')
 		end
 	else
 		local conds = ''
@@ -2130,15 +2299,10 @@ function iTF:updateNameplateStateDrivers(update, configMode)
 			iTF:CreateNew('nameplate' .. i,i)
 			iTF.mainFrame:SetFrameRef('itf' .. i, iTF.frames['nameplate' .. i])
 			end
-			--! WotLK fix: порядок строго такой: SetFrameRef -> SetAttribute('_onstate-…') ->
-			-- RegisterStateDriver. В 3.3.5a регистрация вычисляет условие СИНХРОННО
-			-- (SecureStateDriver.lua:139-151), а SecureHandler_StateOnAttributeChanged
-			-- (SecureHandlers.lua:166-170) дёргает '_onstate-<состояние>', только если атрибут с таким
-			-- именем уже установлен. Пока обработчик шёл вторым, первый переход каждого из 60 драйверов
-			-- терялся: плейт, который уже на экране в момент (пере)инициализации, не получал слота и не
-			-- получал его до конца боя. Если вторым шёл SetFrameRef, тот же переход попадал в сниппет
-			-- раздачи, где self:GetFrameRef(stateid) ещё nil, и `f:ClearAllPoints()` рвал его на первом
-			-- же показанном плейте.
+			--! WotLK fix: order must be SetFrameRef -> SetAttribute('_onstate-…') -> RegisterStateDriver.
+			-- Registration evaluates the condition synchronously, and the handler only runs if its
+			-- attribute already exists, so a handler installed second lost the first transition of all
+			-- 60 drivers. Why that matters, with the FrameXML lines, is docs/TECHNICAL.md item 23.
 			iTF.mainFrame:SetAttribute('_onstate-itf'..i,[=[
 			local f = self:GetFrameRef(stateid)
 
@@ -2153,19 +2317,16 @@ function iTF:updateNameplateStateDrivers(update, configMode)
 			end
 			control:RunAttribute('_itfupdate')
 			]=])
-			--! WotLK fix: у условия обязательна ветка после ';'. Менеджер состояний присваивает атрибут
-			-- только когда новое значение truthy (`if (newValue and newValue ~= oldValue)`,
-			-- SecureStateDriver.lua:99), а строка '] true;' при ложном условии даёт пустое -- то есть
-			-- переход «плейт умер / исчез» клиент не доставляет вообще, iTFCurrentlyShowing держит
-			-- мёртвый токен в слоте, и стяжка не может убрать клетку: это и есть дырка в сетке. Явное
-			-- 'false' даёт ненулевое значение, обработчик освобождает слот и прячет рамку.
+			--! WotLK fix: the branch after ';' is mandatory. The state manager assigns the attribute only
+			-- for a truthy new value, so '] true;' never delivered "plate gone" and the slot stayed
+			-- occupied forever -- that was the hole in the grid. See docs/TECHNICAL.md item 23.
 			RegisterStateDriver(iTF.mainFrame, 'itf'..i, '[@nameplate'..i..', exists, nodead'..conds..'] true;false')
 		end
 	end
 end
 function iTF:CreateMainFrame()
 	iTF.mainFrame = CreateFrame('frame', 'iTFMainFrame', UIParent, 'SecureHandlerStateTemplate')
-	local width = (iTFConfig.layout.frame.width+iTFConfig.layout.frame.hspacing)*(iTFConfig.layout.invertGrow and iTFConfig.layout.colS or math.ceil(iTFConfig.layout.maxUnits/iTFConfig.layout.colS)) --! WotLK fix: оси фона по той же схеме, что getUFPos при invertGrow (подробность -- в ветке 'size' ниже по файлу)
+	local width = (iTFConfig.layout.frame.width+iTFConfig.layout.frame.hspacing)*(iTFConfig.layout.invertGrow and iTFConfig.layout.colS or math.ceil(iTFConfig.layout.maxUnits/iTFConfig.layout.colS)) --! WotLK fix: background axes follow the same scheme as getUFPos under invertGrow (detail in the 'size' branch below)
 	local height = (iTFConfig.layout.frame.height+iTFConfig.layout.frame.vspacing)*(iTFConfig.layout.invertGrow and math.ceil(iTFConfig.layout.maxUnits/iTFConfig.layout.colS) or iTFConfig.layout.colS)
 	iTF.mainFrame:SetSize(width, height)
 	iTF.mainFrame:SetPoint(iTFConfig.layout.grow, UIParent, 'BOTTOMLEFT', iTFConfig.layout.anchor.x, iTFConfig.layout.anchor.y)
@@ -2448,12 +2609,52 @@ end
 SLASH_ITF1 = "/itf"
 SLASH_ITF2 = '/itargetingframes'
 SlashCmdList["ITF"] = function(msg)
-	msg = string.lower(msg:gsub('^%s*(.-)%s*$', '%1'))
+	local raw = (msg:gsub('^%s*(.-)%s*$', '%1'))
+	msg = string.lower(raw)
 	if string.len(msg) == 0 then
 		msg = nil
 	end
 	if msg and msg == 'reset' then
 		iTF:LoadDefaults(true)
+	elseif msg and msg == 'deny' then
+		iTF:DebugDeny()
+	elseif msg and (msg == 'ignore' or msg == 'unignore' or msg:find('^ignore ') or msg:find('^unignore ') or msg == 'ignorelist') then
+		--! WotLK fix: команды чёрного списка NPC. Имя юнита берётся без приведения регистра -- ключ
+		-- списка должен совпадать с UnitName(), а msg ниже уже строчный.
+		iTFConfig.npcBlacklist = iTFConfig.npcBlacklist or {}
+		local arg = (raw:match('^[Ii][Gg][Nn][Oo][Rr][Ee]%s+(.+)$') or raw:match('^[Uu][Nn][Ii][Gg][Nn][Oo][Rr][Ee]%s+(.+)$'))
+		-- пробел по краям аргумента дал бы запись, которая никогда не совпадёт с UnitName()
+		arg = arg and arg:gsub('^%s*(.-)%s*$', '%1')
+		if msg == 'ignorelist' then
+			local n = 0
+			for k in pairs(iTFConfig.npcBlacklist) do
+				iTF:print('blacklist: ' .. tostring(k))
+				n = n + 1
+			end
+			iTF:print('blacklist entries: ' .. n)
+		elseif InCombatLockdown() and (msg == 'ignore' or msg == 'unignore' or arg) then
+			-- полный пересмотр сетки в бою недоступен по той же причине, что и `/itf reset` (п. 7.24)
+			iTF:print(L.combatLockdown)
+		else
+			local keys = {}
+			if arg then
+				keys[1] = arg
+			elseif UnitExists('target') then
+				keys[1] = UnitName('target')
+				local id = iTF:npcIDFromGUID(UnitGUID('target'))
+				if id then keys[2] = tostring(id) end
+			else
+				iTF:print('no target and no name given')
+				return
+			end
+			local remove = msg:find('^unignore') and true or false
+			for _,k in pairs(keys) do
+				if k then
+					iTargetingFrames:NpcBlacklist(k, remove)
+				end
+			end
+			iTF:print((remove and 'unignored: ' or 'ignored: ') .. tostring(keys[1]))
+		end
 	elseif msg then
 		iTF:print('help')
 	else

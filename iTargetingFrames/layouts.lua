@@ -437,7 +437,7 @@ end
 
 function iTF:GetProfileList(KV)
 	local t = {}
-	for k in pairs(layouts) do
+	for k, v in pairs(layouts) do
 		if KV then
 			t[k] = v
 		else

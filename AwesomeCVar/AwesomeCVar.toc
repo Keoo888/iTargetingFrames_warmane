@@ -25,4 +25,5 @@ AwesomeCVar.xml
 # Load Lua logic files
 Constants.lua
 UI.lua
+DistancePanel.lua
 Core.lua

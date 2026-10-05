@@ -56,6 +56,14 @@ if GetLocale() == "esMX" then
     L.DESC_NAMEPLATE_DISTANCE = "Distancia máxima a la que todavía se muestran las placas de nombre. La dll compara este valor cada frame con el parámetro del cliente, lo limita a 41..100 y marca el frame para redibujarlo. Forma parte del perfil integrado (scope=4)."
     L.DESC_INTERACTION_MODE = "0 elige el objeto saqueable/utilizable más cercano en un radio de 20 yardas en cualquier dirección; 1 solo dentro del cono de visión de abajo. Forma parte del perfil integrado (interact)."
     L.DESC_INTERACTION_ANGLE = "Ángulo total del cono de visión que usa '/interact' cuando el modo es cono. La dll lo limita a 15..160 grados. Forma parte del perfil integrado (interact)."
+
+    -- Дистанция до плейтов / цели / фокуса (AWDistance.lua читает эти строки, числа -- в его CLAMPS)
+    L.CATEGORY_DISTANCE = "Distancia"
+
+    L.CVAR_LABEL_DISTANCE_DISPLAY = "Mostrar distancia"
+
+    L.DESC_DISTANCE_DISPLAY = "Interruptor principal de las etiquetas de distancia. Con 0 la dll no calcula ni publica nada y AWDistance.lua no dibuja nada. Forma parte del perfil integrado (distance)."
+
     L.AW_OFF = "— no registrada por esta compilación (%s)"
     L.DESC_CAMERA_INDIRECT_VISIBILITY = "Permite que la cámara atraviese ciertos objetos del mundo en lugar de ser bloqueada."
     L.DESC_CAMERA_INDIRECT_ALPHA = "Establece el nivel de transparencia de los objetos que se interponen entre la cámara y el jugador."

@@ -168,6 +168,12 @@ function ACVar:UpdateAllUI()
             self:UpdateUIForCVar(cvarDef)
         end
     end
+    -- Вкладки, которых нет в ACVar.CVARS: у них свои виджеты и свой refresh (Distance -- DistancePanel.lua).
+    -- Зовётся только для видимой панели: перестраивать чужой UI из-за смены вкладки CVar незачем.
+    for _, extra in ipairs(ACVar.CUSTOM_PANELS or {}) do
+        local panel = self.PanelsByName and self.PanelsByName[extra.name]
+        if panel and panel:IsVisible() and extra.refresh then extra.refresh() end
+    end
 end
 
 function ACVar:ToggleFrame(tabName)
@@ -659,6 +665,59 @@ function ACVar:CreateMainFrame()
         end)
     end
 
+    -- Вкладки не из ACVar.CVARS. Так окно получает панель, которой нельзя выразиться строкой CVar:
+    -- настройки цифр дистанции живут в AWDistanceDB (шрифт, контур, цвет, привязка, смещения, десятые,
+    -- предел дальности), а не в консоли клиента. Строится ровно тем же кадром, что и CVar-вкладки, --
+    -- той же высотой, тем же скроллом и той же лентой табов, чтобы окно не распадалось на два стиля.
+    for _, extra in ipairs(ACVar.CUSTOM_PANELS or {}) do
+        frame.numTabs = frame.numTabs + 1
+
+        local tab = CreateFrame("CheckButton", "AwesomeCVarFrameTab"..frame.numTabs, tabStrip, "OptionsFrameTabButtonTemplate")
+        tab.categoryName = extra.name
+        tab:SetID(frame.numTabs)
+        tab:SetText(extra.name)
+        tab:SetHeight(CONSTANTS.FRAME.TAB_HEIGHT)
+        tab:SetWidth(tab:GetTextWidth() + 30)
+        if prevTab then
+            tab:SetPoint("LEFT", prevTab, "RIGHT", -16, 0)
+        else
+            tab:SetPoint("TOPLEFT", 0, 0)
+        end
+        prevTab = tab
+
+        local panel = CreateFrame("ScrollFrame", "AwesomeCVarScrollFrame_"..extra.name, frame, "UIPanelScrollFrameTemplate")
+        panel:SetPoint("TOPLEFT", 16, -61)
+        panel:SetPoint("BOTTOMRIGHT", frame, "BOTTOMRIGHT", -36, 104)
+        panel:Hide()
+
+        local subPanel = CreateFrame("Frame", "AwesomeCVarFramePanel_"..extra.name, panel)
+        subPanel:SetPoint("TOPLEFT", panel, "TOPLEFT", 0, 6)
+        subPanel:SetSize(panel:GetWidth(), panel:GetHeight() + 12)
+        subPanel:SetBackdrop({
+            bgFile = "Interface/Tooltips/UI-Tooltip-Background",
+            edgeFile = "Interface/Tooltips/UI-Tooltip-Border",
+            tile = true, tileSize = 12, edgeSize = 12,
+            insets = { left = 0, right = 0, top = 0, bottom = 0 }
+        })
+        subPanel:SetBackdropColor(0.3, 0.3, 0.3, 0.8)
+        subPanel:SetBackdropBorderColor(0.5, 0.5, 0.5, 1)
+        subPanel:SetFrameLevel(panel:GetFrameLevel())
+
+        local content = CreateFrame("Frame", "AwesomeCVarFrameContent_"..extra.name, subPanel)
+        content:SetSize(panel:GetSize())
+        panel:SetScrollChild(content)
+        panels[extra.name] = panel
+        tinsert(tabs, tab)
+
+        tab:SetScript("OnClick", function(self)
+            selectTab(self)
+            PlaySound("igCharacterInfoTab")
+        end)
+
+        -- сборкой содержимого владеет сама панель; здесь только рамка и tab, как у CVar-строк
+        extra.build(content, subPanel)
+    end
+
     self.TabsByName = {}
     for _, tab in ipairs(tabs) do
         self.TabsByName[tab.categoryName] = tab
@@ -715,8 +774,50 @@ function ACVar:CreateMainFrame()
     -- apart. GameFontNormalSmall is 10px with ~12px line spacing, so the four greeting lines occupy about
     -- 48px above the 48px baseline; the panel bottom therefore sits at 104 (was 64 in the retail layout,
     -- 96 for three lines) and the window is 40px taller. Layout is confirmed in-game, not offline.
-    local footerText = frame:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
-    footerText:SetPoint("BOTTOMLEFT", 16, 48)
-    footerText:SetJustifyH("LEFT")
-    footerText:SetText(table.concat(CONSTANTS.GREETING or {}, "\n"))
+    --
+    --! WotLK: строки лежат отдельными FontString'ами, а не одним многострочным текстом. Кликабельная
+    -- гиперссылка в этом клиенте живёт только на чат-фрейме (`OnHyperlinkClick` объявлен лишь в
+    -- ChatFrame.xml:15-17, у FontString метода EnableHyperlinks нет), так что для адресной строки в окне
+    -- нужна своя клик-зона, а её можно растянуть ровно по строке, только когда строка -- отдельный объект.
+    -- Разметку ссылки в подвале не показываем: её бы отрисовало, но клик по ней не пришёл бы никогда,
+    -- поэтому в окне остаётся тот же текст адреса обычным шрифтом.
+    local FOOTER_LINE_HEIGHT = 12
+    local footer = CreateFrame("Frame", "AwesomeCVarFooter", frame)
+    footer:SetPoint("BOTTOMLEFT", 16, 48)
+    footer:SetWidth(CONSTANTS.FRAME.MAIN_WIDTH - 32)
+    footer:SetHeight(#(CONSTANTS.GREETING or {}) * FOOTER_LINE_HEIGHT)
+
+    local linkMarkup = "|H" .. CONSTANTS.LINK_SCHEME .. ":"
+    local previousLine
+    for _, line in ipairs(CONSTANTS.GREETING or {}) do
+        local lineText = footer:CreateFontString(nil, "OVERLAY", "GameFontNormalSmall")
+        if previousLine then
+            lineText:SetPoint("TOPLEFT", previousLine, "BOTTOMLEFT")
+        else
+            lineText:SetPoint("TOPLEFT", footer)
+        end
+        lineText:SetJustifyH("LEFT")
+        lineText:SetHeight(FOOTER_LINE_HEIGHT)
+        lineText:SetText((line:gsub(linkMarkup .. "[^|]*|h%[(.-)%]|h", "%1")))
+        previousLine = lineText
+
+        if line:find(linkMarkup, 1, true) then
+            local catcher = CreateFrame("Button", nil, footer)
+            catcher:SetPoint("LEFT", lineText, "LEFT", -2, 0)
+            catcher:SetPoint("RIGHT", lineText, "RIGHT", 2, 0)
+            catcher:SetPoint("TOP", lineText, "TOP", 0, 2)
+            catcher:SetPoint("BOTTOM", lineText, "BOTTOM", 0, -2)
+            catcher:SetScript("OnClick", function()
+                ACVar:PutUrlInChatBox(CONSTANTS.DISCORD_URL)
+            end)
+            catcher:SetScript("OnEnter", function(self)
+                _G.GameTooltip:SetOwner(self, "ANCHOR_RIGHT")
+                _G.GameTooltip:SetText(CONSTANTS.LINK_HINT, 1, 1, 1)
+                _G.GameTooltip:Show()
+            end)
+            catcher:SetScript("OnLeave", function()
+                _G.GameTooltip:Hide()
+            end)
+        end
+    end
 end

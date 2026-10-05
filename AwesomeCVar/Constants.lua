@@ -6,8 +6,21 @@ local L = ACVar.L or {} -- Get the locale table loaded previously
 _G["AwesomeCVar"] = {} -- Public API table
 
 -- This table holds constants used throughout the addon.
+
+--! Адрес и схема ссылки -- один источник на весь аддон: строку приветствия собираем отсюда, обработчик
+-- клика (Core.lua) узнаёт эту же схему, клик-зона в подвале окна (UI.lua) вставляет этот же адрес.
+-- Схема `url` взята у ElvUI (`Modules/Chat/Chat.lua:763` `CH:PrintURL`), чтобы в клиенте с ElvUI ссылка
+-- работала и без нашего хука; в клиенте без ElvUI клик по ней обрабатывает только наш хук.
+local DISCORD_URL = "https://discord.gg/sKpJbUrsvR"
+local LINK_SCHEME = "url"
+
 ACVar.CONSTANTS = {
     ADDON_NAME = L.ADDON_NAME,
+    DISCORD_URL = DISCORD_URL,
+    LINK_SCHEME = LINK_SCHEME,
+    -- Тоже вне Locales и тоже ASCII: подсказка при наведении на ссылку в окне должна читаться одинаково
+    -- на любой локали клиента, как и блок кредитов ниже.
+    LINK_HINT = "Click to put the link into the chat box",
     COLORS = {
         SUCCESS = "|cff00ff00",
         HIGHLIGHT = "|cffffd100",
@@ -25,9 +38,9 @@ ACVar.CONSTANTS = {
     -- Locales/zhCN.lua and zhTW.lua ship -- they just must not be shown on a different-codepoint client.
     -- Character names carry the faction colour: Alliance blue, Horde red.
     GREETING = {
-        "|cff9d9d9dPlaying on |cff00ccffIcecrown Citadel|r|cff9d9d9d.|r",
+        "|cff9d9d9dPlaying on |cff00ccffIcecrown|r|cff9d9d9d.|r",
         "|cff9d9d9dMade by |cffffd100Keoo|r |cff9d9d9dfor Warmane.|r",
-        "|cff9d9d9dDiscord: |cff00ccffhttps://discord.gg/sKpJbUrsvR|r",
+        "|cff9d9d9dDiscord: |cff00ccff|H" .. LINK_SCHEME .. ":" .. DISCORD_URL .. "|h[" .. DISCORD_URL .. "]|h|r",
         "|cff9d9d9dAlliance: |cff0070ddEgorxxl|r    |cff9d9d9dHorde: |cffff0000Egormashina|r",
     },
     FRAME = {
@@ -68,4 +81,8 @@ ACVar.CVARS = {
         { name = "interactionMode", label = L.CVAR_LABEL_INTERACTION_MODE, desc = L.DESC_INTERACTION_MODE, type = "mode", modes = { { value = 0, label = L.MODE_LABEL_PLAYER_RADIUS }, { value = 1, label = L.MODE_LABEL_CONE_ANGLE } }, default = 1, awNeeds = "профиль: interact" },
         { name = "interactionAngle", label = L.CVAR_LABEL_INTERACTION_ANGLE, desc = L.DESC_INTERACTION_ANGLE, type = "slider", min = 15, max = 160, step = 1, default = 60, awNeeds = "профиль: interact" },
     },
+    -- Вкладка Distance в этом окне -- не строка CVar: настройки цифр живут в AWDistanceDB, а единственную
+    -- переменную консоли (distanceDisplay) объявляет addons/AwesomeCVar/DistancePanel.lua, и гейт читает
+    -- строки из обоих файлов. Категории дистанции здесь нет намеренно: двух мест, где настраивают одно,
+    -- не должно быть даже ради одной галки.
 }

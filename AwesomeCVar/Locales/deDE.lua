@@ -56,6 +56,14 @@ if GetLocale() == "deDE" then
     L.DESC_NAMEPLATE_DISTANCE = "Größte Entfernung, aus der Namensplaketten noch angezeigt werden. Die dll vergleicht diesen Wert in jedem Frame mit der Distanz des Clients, begrenzt ihn auf 41..100 und markiert das Frame zum Neuzeichnen. Teil des eingebauten Profils (scope=4)."
     L.DESC_INTERACTION_MODE = "0 wählt das nächste lesbare/benutzbare Objekt innerhalb von 20 Yard in beliebiger Richtung; 1 nur innerhalb des Sichtkegels unten. Teil des eingebauten Profils (interact)."
     L.DESC_INTERACTION_ANGLE = "Vollwinkel des Sichtkegels, den „/interact“ im Kegelmodus benutzt. Die dll begrenzt ihn auf 15..160 Grad. Teil des eingebauten Profils (interact)."
+
+    -- Дистанция до плейтов / цели / фокуса (AWDistance.lua читает эти строки, числа -- в его CLAMPS)
+    L.CATEGORY_DISTANCE = "Distanz"
+
+    L.CVAR_LABEL_DISTANCE_DISPLAY = "Distanz anzeigen"
+
+    L.DESC_DISTANCE_DISPLAY = "Hauptschalter der Distanzbeschriftungen. Bei 0 rechnet und veröffentlicht die dll nichts, und AWDistance.lua zeichnet nichts. Teil des eingebauten Profils (distance)."
+
     L.AW_OFF = "— von diesem Build nicht registriert (%s)"
     L.DESC_CAMERA_INDIRECT_VISIBILITY = "Ermöglicht es der Kamera, durch bestimmte Objekte hindurchzugehen, anstatt blockiert zu werden."
     L.DESC_CAMERA_INDIRECT_ALPHA = "Legt die Transparenz von Objekten fest, die sich zwischen Kamera und Spieler befinden."

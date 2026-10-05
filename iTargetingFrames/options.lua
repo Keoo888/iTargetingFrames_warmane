@@ -20,6 +20,10 @@ function iTF:LoadDefaults(force)
 	if not iTFConfig.priorityNPCs then
 		iTFConfig.priorityNPCs = {}
 	end
+	if not iTFConfig.npcBlacklist then -- чёрный список NPC (Auras -> NPC Blacklist, или '/itf ignore'),
+		-- ключи: имя юнита или его npcID
+		iTFConfig.npcBlacklist = {}
+	end
 	local defaults = iTF:GetProfile()
 	if force then
 		--! WotLK fix: reset в бою отказывается целиком, до первой записи конфига. Половинчатый reset --
@@ -2165,6 +2169,41 @@ function optionFuncs.getOptions()
 						},
 					},
 				},
+				npcBlacklist = {
+					name = L.npcBlacklist,
+					order = 3,
+					npcBlacklist = true,
+					args = {
+						text = {
+							name = L.npcIDorName,
+							order = 1,
+							type = 'input',
+							updateOnClick = true,
+							set = function(val)
+								if InCombatLockdown() then
+									iTF:print(L.combatLockdown)
+									return
+								end
+								-- Ключ сравнивается с UnitName() посимвольно, поэтому пробел по краям
+								-- (въезжает при вставке из блокнота) означал бы «запись есть, не
+								-- совпадает». Снимаем пробелы и печатаем то, что реально легло в список.
+								val = val and string.match(val, '^%s*(.-)%s*$')
+								if not val or string.len(val) <= 2 then
+									iTF:print(L.errorNPC)
+									return
+								end
+								-- Ключ остаётся строкой, в отличие от списка аур: npcID рамки --
+								-- десятичная строка, и числовой ключ в iTFConfig.npcBlacklist с ней бы не
+								-- совпал. NpcBlacklist приводит к строке сам.
+								iTargetingFrames:NpcBlacklist(val)
+								iTF:print(L.npcBlacklist .. ': ' .. val)
+							end,
+							get = function() 
+								return ''
+							end,
+						},
+					},
+				},
 			},
 		},
 		indicators = {
@@ -3351,6 +3390,64 @@ function iTF:toggleConfig(forceHide)
 					f.content.text[contentText]:SetJustifyV('MIDDLE')
 					f.content.text[contentText].inUse = 'blacklist'
 					f.content.text[contentText]:SetText(v.spell)
+					f.content.text[contentText]:Show()
+					f.content.anchor[argCount]:Show()
+				end
+			end
+			if t.npcBlacklist then -- Use different layout for the NPC blacklist tab
+				local npcs = {}
+				for k,v in pairs(iTFConfig.npcBlacklist) do
+					if v then
+						if tonumber(k) then
+							table.insert(npcs, {['npc'] = string.format('%s (ID)', k), ['id'] = k})
+						else
+							table.insert(npcs, {['npc'] = k, ['id'] = k})
+						end
+					end
+				end
+				-- making sure the list starts at the first column
+				if #npcs >= 1 then
+					if argCount % 3 == 2 then
+						argCount = argCount + 1
+					elseif argCount % 3 == 1 then
+						argCount = argCount + 2
+					end
+				end
+				for k,v in spairs(npcs, function(t,a,b) return t[b].npc > t[a].npc end) do
+					argCount = argCount + 1
+					while (argCount % 3 == 2) do
+						argCount = argCount + 1
+					end
+					getFrame('anchor', true, nil, argCount)
+					f.content.anchor[argCount]:SetSize(218,20)
+					f.content.anchor[argCount].inUse = 'npcBlacklist'
+					f.content.anchor[argCount]:SetBackdropColor(0.2,0.2,0.2,0.5)
+					f.content.anchor[argCount]:SetBackdropBorderColor(0,0,0,1)
+
+					local exitButton = getFrame('exitButton', true)
+					f.content.exitButton[exitButton]:SetHeight(20)
+					f.content.exitButton[exitButton]:ClearAllPoints()
+					f.content.exitButton[exitButton]:SetPoint('LEFT', f.content.anchor[argCount], 'LEFT', 0,0)
+					f.content.exitButton[exitButton].inUse = 'npcBlacklist'
+					f.content.exitButton[exitButton]:SetScript('OnClick', function()
+						if InCombatLockdown() then
+							iTF:print(L.combatLockdown)
+							return
+						end
+						iTFConfig.npcBlacklist[v.id] = nil
+						iTF:refreshNpcBlacklist()
+						fillContent(keys)
+					end)
+					f.content.exitButton[exitButton]:Show()
+					local contentText = getFrame('text', true)
+					f.content.text[contentText]:ClearAllPoints()
+					f.content.text[contentText]:SetPoint('LEFT', f.content.exitButton[exitButton], 'RIGHT', 2,0)
+					f.content.text[contentText]:SetWidth(214)
+					f.content.text[contentText]:SetHeight(15)
+					f.content.text[contentText]:SetJustifyH('LEFT')
+					f.content.text[contentText]:SetJustifyV('MIDDLE')
+					f.content.text[contentText].inUse = 'npcBlacklist'
+					f.content.text[contentText]:SetText(v.npc)
 					f.content.text[contentText]:Show()
 					f.content.anchor[argCount]:Show()
 				end

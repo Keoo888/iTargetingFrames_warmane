@@ -7,8 +7,8 @@
 -- The functions are Lua closures on purpose. A C closure is a pointer into AwesomeWotlkLib.dll, and the
 -- client validates function pointers before calling them on some paths: measured 29.09 21:18, that is
 -- ERROR #134 "Invalid function pointer: 6FF73640" with "Current Addon function: GetNamePlateForUnit".
--- Upstream answers by widening the allowed range (globals 0x00D415B8/BC), and that widening is exactly what
--- the server detects. Data + Lua closures need neither.
+-- Upstream answers by widening the range of pointers the client accepts. This pack changes no client code,
+-- so it needs neither of that: published data plus Lua closures cover every call site.
 
 if type(C_NamePlate) ~= "table" then C_NamePlate = {} end
 

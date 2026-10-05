@@ -56,6 +56,14 @@ if GetLocale() == "koKR" then
     L.DESC_NAMEPLATE_DISTANCE = "이름표가 여전히 표시되는 최대 거리. dll은 이 값을 매 프레임 클라이언트의 거리 값과 비교하고 41..100으로 제한한 뒤 다시 그리도록 표시합니다. 내장 프로필(scope=4)의 일부입니다."
     L.DESC_INTERACTION_MODE = "0은 모든 방향에서 20야드 안에서 가장 가까운 획득/사용 가능한 물체를 고르고, 1은 아래 시야 원뿔 안에서만 고릅니다. 내장 프로필(interact)의 일부입니다."
     L.DESC_INTERACTION_ANGLE = "원뿔 모드에서 '/interact'가 사용하는 시야 원뿔의 전체 각도. dll은 15..160도로 제한합니다. 내장 프로필(interact)의 일부입니다."
+
+    -- Дистанция до плейтов / цели / фокуса (AWDistance.lua читает эти строки, числа -- в его CLAMPS)
+    L.CATEGORY_DISTANCE = "거리"
+
+    L.CVAR_LABEL_DISTANCE_DISPLAY = "거리 표시"
+
+    L.DESC_DISTANCE_DISPLAY = "거리 라벨의 주 스위치입니다. 0이면 dll은 계산도 공개도 하지 않고 AWDistance.lua도 아무것도 그리지 않습니다. 내장 프로필(distance)의 일부입니다."
+
     L.AW_OFF = "— 이 빌드가 등록하지 않은 변수 (%s)"
     L.DESC_CAMERA_INDIRECT_VISIBILITY = "카메라가 지형지물에 막히지 않고 통과할 수 있게 합니다."
     L.DESC_CAMERA_INDIRECT_ALPHA = "카메라와 캐릭터 사이를 가리는 물체의 투명도를 설정합니다."

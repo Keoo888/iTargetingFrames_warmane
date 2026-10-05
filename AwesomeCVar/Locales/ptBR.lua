@@ -56,6 +56,14 @@ if GetLocale() == "ptBR" then
     L.DESC_NAMEPLATE_DISTANCE = "Maior distância em que as placas de nome ainda são exibidas. A dll compara este valor a cada quadro com o parâmetro do cliente, limita a 41..100 e marca o quadro para redesenho. Faz parte do perfil embutido (scope=4)."
     L.DESC_INTERACTION_MODE = "0 escolhe o objeto coletável/utilizável mais próximo num raio de 20 jardas em qualquer direção; 1 apenas dentro do cone de visão abaixo. Faz parte do perfil embutido (interact)."
     L.DESC_INTERACTION_ANGLE = "Ângulo total do cone de visão usado por '/interact' no modo cone. A dll limita a 15..160 graus. Faz parte do perfil embutido (interact)."
+
+    -- Дистанция до плейтов / цели / фокуса (AWDistance.lua читает эти строки, числа -- в его CLAMPS)
+    L.CATEGORY_DISTANCE = "Distância"
+
+    L.CVAR_LABEL_DISTANCE_DISPLAY = "Mostrar distância"
+
+    L.DESC_DISTANCE_DISPLAY = "Chave geral das etiquetas de distância. Em 0 a dll não calcula nem publica nada, e o AWDistance.lua não desenha nada. Faz parte do perfil embutido (distance)."
+
     L.AW_OFF = "— não registrada nesta compilação (%s)"
     L.DESC_CAMERA_INDIRECT_VISIBILITY = "Permite que a câmera atravesse certos objetos em vez de ser bloqueada."
     L.DESC_CAMERA_INDIRECT_ALPHA = "Define o nível de transparência de objetos que ficam entre a câmera e o personagem."

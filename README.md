@@ -44,8 +44,9 @@ provides.
 
 Alongside the addon the repository carries the client library it is written for,
 `AwesomeWotlkLib.dll`, and the two small addons that read it: **AWNamePlateAPI**
-publishes the `nameplateN` unit tokens and the `/interact` channel, **AwesomeCVar**
-is the `/awesome` window with the controls the library registers. The addon loads
+publishes the `nameplateN` unit tokens, the `/interact` channel and the yard labels,
+**AwesomeCVar** is the `/awesome` window with the controls the library registers and
+with the tab those labels are set up on. The addon loads
 without them and simply falls back to the stock 3.3.5a lookups, which can put one
 unit into several frames; with them the tokens stay stable for the whole session.
 Nothing here is mandatory — every call into the library is guarded, so a client
@@ -134,6 +135,13 @@ are actually aiming at instead of the closest raw target.
 
 <img width="1146" height="861" alt="interaction" src="https://github.com/user-attachments/assets/10408e21-ccc5-4e87-94d5-673211a46532" />
 
+`distanceDisplay` is the single switch for the yard numbers: the library measures the
+distance to every visible nameplate and to your target and focus, and **AWNamePlateAPI**
+draws what it measured. Font, outline, size, colour, anchor and offsets are set per plate
+type on the Distance tab of `/awesome`, with their own profile for the target frame and
+another one for the focus, and they survive a reload. `/awdistance` prints what those
+labels actually see, which is the quickest way to find out why one of them is missing.
+
 <a name="commands"></a>
 ### Commands
 
@@ -142,6 +150,9 @@ are actually aiming at instead of the closest raw target.
 | `/itf` | Open the settings window |
 | `/itf reset` | Reset everything to defaults |
 | `/itf <anything else>` | Print the command help |
+| `/awesome` | Open the window with the library controls |
+| `/interact [unit]` | Use the nearest object you are facing, or the named one (`target`, `focus`, `mouseover`, `nameplate3`) |
+| `/awdistance` | Print what the distance labels actually see |
 
 <a name="installation"></a>
 ### Installation
@@ -195,8 +206,9 @@ API 3.3.5a.
 
 Кроме аддона в репозитории лежит библиотечка для клиента, `AwesomeWotlkLib.dll`, и
 два маленьких аддона, которые из неё читают: **AWNamePlateAPI** отдаёт токены юнитов
-`nameplateN` и канал `/interact`, **AwesomeCVar** — окно `/awesome` с контролами,
-которые библиотека регистрирует. Без них аддон тоже загрузится, но уйдёт в штатные
+`nameplateN`, канал `/interact` и подписи дистанции, **AwesomeCVar** — окно `/awesome`
+с контролами, которые библиотека регистрирует, и с вкладкой, на которой эти подписи
+настраиваются. Без них аддон тоже загрузится, но уйдёт в штатные
 поиски неймплейтов 3.3.5a и может показать одного юнита в нескольких рамках; с ними
 токены остаются стабильными всю сессию. Обязательного тут ничего нет — каждый вызов
 в библиотеку защищён, и на клиенте без неё просто теряются соответствующие контролы.
@@ -283,6 +295,13 @@ API 3.3.5a.
 
 <img width="1146" height="861" alt="interaction" src="https://github.com/user-attachments/assets/10408e21-ccc5-4e87-94d5-673211a46532" />
 
+`distanceDisplay` — единственный тумблер цифр в ярдах: библиотека считает дистанцию до
+каждого видимого неймплея и до цели с фокусом, а **AWNamePlateAPI** рисует то, что
+посчитано. Шрифт, контур, размер, цвет, привязка и смещения задаются отдельно для каждого
+типа табличек на вкладке «Дистанция» окна `/awesome`: цель и фокус получают свои профили,
+и настройки переживают перезагрузку интерфейса. `/awdistance` печатает то, что эти подписи
+видят на самом деле, — им удобнее всего выяснять, почему одна из них не появилась.
+
 <a name="команды"></a>
 ### Команды (Commands)
 
@@ -291,6 +310,9 @@ API 3.3.5a.
 | `/itf` | Открыть окно настроек |
 | `/itf reset` | Сбросить все настройки к значениям по умолчанию |
 | `/itf <что угодно ещё>` | Показать справку по командам |
+| `/awesome` | Открыть окно контролов библиотеки |
+| `/interact [юнит]` | Взять ближайший объект, в который вы целитесь, или названный (`target`, `focus`, `mouseover`, `nameplate3`) |
+| `/awdistance` | Напечатать то, что в действительности видят подписи дистанции |
 
 <a name="установка"></a>
 ### Установка

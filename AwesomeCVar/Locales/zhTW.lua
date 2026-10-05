@@ -56,6 +56,14 @@ if GetLocale() == "zhTW" then
     L.DESC_NAMEPLATE_DISTANCE = "仍會顯示姓名牌的最大距離。dll 每幀將這個值與客戶端自身的距離參數比較，限制在 41..100，不一致時標記重繪。屬於內建設定（scope=4）。"
     L.DESC_INTERACTION_MODE = "0 在任意方向的 20 碼內選擇最近的拾取/使用目標；1 只在下方的視野錐內選擇。屬於內建設定（interact）。"
     L.DESC_INTERACTION_ANGLE = "錐狀模式下 '/interact' 使用的視野錐全角。dll 將其限制在 15..160 度。屬於內建設定（interact）。"
+
+    -- Дистанция до плейтов / цели / фокуса (AWDistance.lua читает эти строки, числа -- в его CLAMPS)
+    L.CATEGORY_DISTANCE = "距離"
+
+    L.CVAR_LABEL_DISTANCE_DISPLAY = "顯示距離"
+
+    L.DESC_DISTANCE_DISPLAY = "距離文字的總開關。為 0 時 dll 既不計算也不發布數值，AWDistance.lua 也不繪製任何東西。屬於內建設定（distance）。"
+
     L.AW_OFF = "— 本次建置未註冊該變數（%s）"
     L.DESC_CAMERA_INDIRECT_VISIBILITY = "允許鏡頭穿過某些世界物體而非被阻擋。"
     L.DESC_CAMERA_INDIRECT_ALPHA = "設置鏡頭與玩家角色之間的遮擋物透明度。"

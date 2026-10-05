@@ -56,6 +56,14 @@ if GetLocale() == "frFR" then
     L.DESC_NAMEPLATE_DISTANCE = "Distance maximale à laquelle les barres d’info sont encore affichées. La dll compare cette valeur à chaque frame au paramètre du client, la borne à 41..100 et marque le cadre pour un redessin. Fait partie du profil intégré (scope=4)."
     L.DESC_INTERACTION_MODE = "0 choisit l’objet ramassable/utilisable le plus proche dans un rayon de 20 mètres dans toutes les directions ; 1 uniquement dans le cône de vision ci-dessous. Fait partie du profil intégré (interact)."
     L.DESC_INTERACTION_ANGLE = "Angle total du cône de vision utilisé par « /interact » en mode cône. La dll le borne à 15..160 degrés. Fait partie du profil intégré (interact)."
+
+    -- Дистанция до плейтов / цели / фокуса (AWDistance.lua читает эти строки, числа -- в его CLAMPS)
+    L.CATEGORY_DISTANCE = "Distance"
+
+    L.CVAR_LABEL_DISTANCE_DISPLAY = "Afficher la distance"
+
+    L.DESC_DISTANCE_DISPLAY = "Interrupteur général des étiquettes de distance. À 0, la dll ne calcule et ne publie rien, et AWDistance.lua ne dessine rien. Fait partie du profil intégré (distance)."
+
     L.AW_OFF = "— non enregistrée par cette version (%s)"
     L.DESC_CAMERA_INDIRECT_VISIBILITY = "Permet à la caméra de traverser certains objets au lieu d'être bloquée."
     L.DESC_CAMERA_INDIRECT_ALPHA = "Définit la transparence des objets se trouvant entre la caméra et le personnage."

@@ -43,7 +43,7 @@ ACVar.reloadIsPending = false
 -- переменную зарегистрировал клиент или наша dll (ensureCustomCVars).
 --
 -- Кэшируются только положительные ответы: если опрос случится раньше, чем dll зарегистрирует свои CVar'ы
--- (наш пул идёт вместе с injection'ом Lua-библиотек на заставке), отрицательный ответ не должен
+-- (наш пул идёт вместе с loading'ом Lua-библиотек на заставке), отрицательный ответ не должен
 -- застревать на всю сессию.
 local probe
 if type(GetCVarDefault) == "function" then
@@ -89,6 +89,37 @@ function ACVar:PrintGreeting()
         _G.DEFAULT_CHAT_FRAME:AddMessage(line)
     end
 end
+
+--! Клик по ссылке-адресу. 3.3.5a не открывает браузер, а схема `url` для него чужая: оригинальный
+-- SetItemRef (FrameXML ItemRef.lua:2, ветка в конце -- :176-183) не знает ни player:, ни channel:, ни
+-- GMChat, поэтому проваливается до ShowUIPanel(ItemRefTooltip) + ItemRefTooltip:SetHyperlink(link) и
+-- показывает пустое окно тултипа. Тем же пост-хуком чинит этот дефект Cell (`Comm/Comm.lua:457-487`).
+-- Наш хук делает две вещи: снимает это окно и кладёт адрес в поле отправки выделенным -- поведение
+-- снято с ElvUI (`Modules/Chat/Chat.lua:820-843`: `SetChatEditBoxMessage` + `HyperLinkedURL`), оттуда же
+-- и схема, чтобы в клиенте с ElvUI ссылка работала даже без этого файла.
+function ACVar:PutUrlInChatBox(url)
+    if type(url) ~= "string" or url == "" then return end
+    local box = _G.ChatEdit_ChooseBoxForSend and _G.ChatEdit_ChooseBoxForSend()
+    if not box then return end
+    if not box:IsShown() and _G.ChatEdit_ActivateChat then _G.ChatEdit_ActivateChat(box) end
+    -- В клиенте с ElvUI её обработчик живёт внутри оригинального SetItemRef, то есть отрабатывает ДО
+    -- нашего пост-хука и уже положил адрес в поле. Без этой проверки клик вставлял бы ссылку дважды.
+    if box:GetText() ~= url then
+        if box:GetText() ~= "" then box:SetText("") end
+        box:Insert(url)
+    end
+    box:HighlightText()
+    box:SetFocus()
+end
+
+hooksecurefunc("SetItemRef", function(link)
+    local scheme = CONSTANTS.LINK_SCHEME..":"
+    if type(link) ~= "string" or string.sub(link, 1, string.len(scheme)) ~= scheme then return end
+    -- Чужие схемы (item:, spell:, achievement:) тултип показывать обязаны, поэтому окно снимается только
+    -- для своей: иначе клик по предмету в чате терял бы описание.
+    if _G.ItemRefTooltip and _G.ItemRefTooltip:IsShown() then _G.ItemRefTooltip:Hide() end
+    ACVar:PutUrlInChatBox(string.sub(link, string.len(scheme) + 1))
+end)
 
 function ACVar:PrintCVarChange(cvarName, value, label)
     ACVar:PrintMessage(format(
