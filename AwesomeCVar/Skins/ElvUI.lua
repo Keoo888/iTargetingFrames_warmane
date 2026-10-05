@@ -79,6 +79,86 @@ ACVar.Skins.ElvUI = function()
         end
     end
 
+    -- Вкладка Distance: её контролы строит DistancePanel.lua лениво (build() из первого refresh), то есть
+    -- уже после того, как отработали проходы по окну и по строкам CVar. Поэтому обход свой -- по дереву:
+    -- у вкладки контрол лежит на два уровня глубже (box -> DropRow -> dropdown), чем у строки CVar, и
+    -- часть виджетов появляется позже самого списка. Каждый фрейм оформляется один раз, флаг на нём же.
+    local function savePoints(frame)
+        local points = {}
+        for i = 1, frame:GetNumPoints() do
+            points[i] = { frame:GetPoint(i) }
+        end
+        return points
+    end
+
+    local function skinDropDownBox(dd)
+        local points = savePoints(dd)
+        S:HandleDropDownBox(dd)
+        dd:SetTemplate("Transparent")
+        if dd.backdrop then dd.backdrop:Hide() end
+        local btn = _G[dd:GetName() .. "Button"]
+        if btn then
+            btn:ClearAllPoints()
+            btn:Point("RIGHT", dd, "RIGHT", -8, 0)
+            btn:Size(20, 20)
+        end
+        -- HandleDropDownBox зовёт frame:Width(), а наши дропдауны растянуты двумя якорями по ширине
+        -- строки -- возвращаем якоря как были, иначе список сжимается до 155 пикселей
+        dd:ClearAllPoints()
+        for _, p in ipairs(points) do
+            dd:SetPoint(p[1], p[2], p[3], p[4], p[5])
+        end
+        dd.xOffset = 1
+        dd.__elvSkinned = true
+
+        local list, bar = dd.awPulloutFrame, dd.awPulloutSlider
+        if list and not list.__elvSkinned then
+            list:StripTextures()
+            list:SetTemplate("Transparent")
+            list.__elvSkinned = true
+        end
+        if bar and not bar.__elvSkinned then
+            S:HandleSliderFrame(bar)
+            bar.__elvSkinned = true
+        end
+    end
+
+    local function skinTree(parent)
+        for _, child in ipairs({ parent:GetChildren() }) do
+            if not child.__elvSkinned then
+                local name = child:GetName()
+                if child:IsObjectType("CheckButton") then
+                    S:HandleCheckBox(child, true)
+                    child.__elvSkinned = true
+                elseif child:IsObjectType("Slider") then
+                    S:HandleSliderFrame(child)
+                    child.__elvSkinned = true
+                elseif child:IsObjectType("EditBox") then
+                    S:HandleEditBox(child)
+                    child.__elvSkinned = true
+                elseif child:IsObjectType("Frame") and name and _G[name .. "Button"] and _G[name .. "Text"] then
+                    skinDropDownBox(child)
+                elseif child:IsObjectType("Button") and name and not match(name, "Swatch") then
+                    S:HandleButton(child)
+                    child.__elvSkinned = true
+                elseif not name then
+                    -- блоки вкладки без имени: тот же приём, что и у control-строки CVar выше
+                    child:StripTextures()
+                    child:SetTemplate("Transparent")
+                    child.__elvSkinned = true
+                end
+            end
+            skinTree(child)
+        end
+    end
+
+    local function SkinDistancePanel()
+        for _, panel in pairs(ACVar.PanelsByName or {}) do
+            local built = panel.GetScrollChild and panel:GetScrollChild()
+            if built then skinTree(built) end
+        end
+    end
+
     local function SkinMainFrame()
         if not ACVar.Frame or ACVar.Frame.__elvSkinned then return end
 
@@ -171,6 +251,10 @@ ACVar.Skins.ElvUI = function()
     hooksecurefunc(ACVar, "UpdateUIForCVar", function(self, cvarDef)
         SkinCVarControl(cvarDef)
     end)
+
+    -- Вкладка Distance строится из первого refresh (DistancePanel.lua), поэтому и оформляется тем же
+    -- хуком на тот же проход: до него виджетов вкладки просто не существует.
+    hooksecurefunc(ACVar, "UpdateDistancePanel", SkinDistancePanel)
 
     hooksecurefunc(ACVar, "AddGameMenuButton", function()
         local btn = _G["GameMenuButtonAwesomeCVar"]

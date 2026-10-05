@@ -427,6 +427,9 @@ local function dropdown(parent, label, x, y, items, get, setIt)
     UIDropDownMenu_SetWidth(dd, listWidth)
 
     local pullout = makePullout(dd, items, get, setIt, listWidth)
+    -- Список живёт на UIParent, а не внутри панели: skin-модуль, который обошёл дерево вкладки, его не
+    -- найдёт. Отдаём ссылки на рамку и её ползунок прямо на дропдауне (Skins/ElvUI.lua забирает их там же).
+    dd.awPulloutFrame, dd.awPulloutSlider = pullout.frame, pullout.slider
     local button = _G[dd:GetName() .. "Button"]         -- именованный фрейм: шаблон завёл кнопку
     button:SetScript("OnClick", function()
         if opened == pullout then pullout:Close() else pullout:Open() end
