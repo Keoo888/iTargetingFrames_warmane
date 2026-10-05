@@ -179,6 +179,7 @@ The final path has to look like `\Interface\AddOns\iTargetingFrames\iTargetingFr
 
 - Original addon: **Ironi** — iTargetingFrames
 - Backport to WotLK 3.3.5a: **Cheeta**
+- Original AwesomeCVar: **noname08662**
 - This fork: **Keoo** — [discord.gg/sKpJbUrsvR](https://discord.gg/sKpJbUrsvR)
 
 ---
@@ -339,4 +340,5 @@ API 3.3.5a.
 
 - Оригинальный аддон: **Ironi** — iTargetingFrames
 - Бэкпорт под WotLK 3.3.5a: **Cheeta**
+- Оригинальный AwesomeCVar: **noname08662**
 - Этот форк: **Keoo** — [discord.gg/sKpJbUrsvR](https://discord.gg/sKpJbUrsvR)
