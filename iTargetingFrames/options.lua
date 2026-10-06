@@ -2,6 +2,29 @@ local _, iTF = ...
 local L = LibStub('AceLocale-3.0'):GetLocale('iTargetingFrames', true)
 LibStub('LibSharedMedia-3.0'):Register('statusbar', 'White 8x8', 'Interface\\Buttons\\WHITE8x8')
 function iTF:LoadDefaults(force)
+	--! WotLK fix (06.10): отказ в бою и сброс старого конфига подняты НАД созданием подтаблиц ниже.
+	-- Раньше оба стояли под ними, и сброс (`iTFConfig = nil; iTFConfig = {}`) сносил те самые подтаблицы,
+	-- которые эта же функция только что создала. Ниже в ней же идёт `for k,v in pairs(iTFConfig.blacklist)`,
+	-- и на старом конфиге '/itf reset' падал там: «bad argument #1 to 'pairs' (table expected, got nil)»,
+	-- причём уже ПОСЛЕ того как updateFrames() отработал: сетка пересобрана, а список аур и приоритетных
+	-- NPC не восстановлен. Ровно тот reset, который аддон сам советует сообщением «WTF layout has changed,
+	-- use "/itf reset"», и ломался на конфиге, для которого его и советуют. Теперь старый конфиг
+	-- выбрасывается первым, и пять блоков `if not iTFConfig.X` ниже создают подтаблицы заново -- пустыми,
+	-- как и требует сброс к дефолтам.
+	if force then
+		--! WotLK fix: reset в бою отказывается целиком, до первой записи конфига. Половинчатый reset --
+		-- layout уже дефолтный, а secure-сетка ещё под СТАРЫЙ maxUnits -- это ровно та дырка, из-за которой
+		-- пересборку и добавляли (плейты сверх старого лимита вечно ждут слота), и в бою её нечем исправить,
+		-- пока игрок не выйдет из боя: ветки 'size'/'pos' пишут атрибуты secure-хендла. Конфиг iTF в бою
+		-- закрыт тем же правилом, которым закрыт вход в окно настроек (options.lua:2336), и теми же проверками в ветках slash-команд (iTargetingFrames.lua:2638, :2664).
+		if InCombatLockdown() then
+			iTF:print(L.combatLockdown)
+			return
+		end
+		if iTFConfig.frame then
+			iTFConfig = {}
+		end
+	end
 	if not iTFConfig.bindings then --first run
 		iTFConfig.bindings = {
 			['general'] = {
@@ -26,19 +49,6 @@ function iTF:LoadDefaults(force)
 	end
 	local defaults = iTF:GetProfile()
 	if force then
-		--! WotLK fix: reset в бою отказывается целиком, до первой записи конфига. Половинчатый reset --
-		-- layout уже дефолтный, а secure-сетка ещё под СТАРЫЙ maxUnits -- это ровно та дырка, из-за которой
-		-- пересборку и добавляли (плейты сверх старого лимита вечно ждут слота), и в бою её нечем исправить,
-		-- пока игрок не выйдет из боя: ветки 'size'/'pos' пишут атрибуты secure-хендла. Конфиг iTF в бою
-		-- закрыт тем же правилом, которым закрыт вход в окно настроек (iTargetingFrames.lua:2422 и :2453-2456).
-		if InCombatLockdown() then
-			iTF:print(L.combatLockdown)
-			return
-		end
-		if iTFConfig.frame then
-			iTFConfig = nil
-			iTFConfig = {}
-		end
 		iTFConfig.layout = defaults
 		--! WotLK fix: раньше здесь стоял только updateFrames('conditionals'), и этого мало: сетка живёт не
 		-- только в layout -- циклы `for i = 1, %d` в сниппете '_itfupdate' собраны под СТАРЫЙ maxUnits, а
@@ -101,11 +111,9 @@ function iTF:LoadDefaults(force)
 	end
 	iTFConfig.priorityNPCs = npcTemp
 end
-local function loadProfile(profile)
-	if profile == 'default' then
-		iTF:LoadDefaults(true)
-	end
-end
+--! WotLK fix (06.10): здесь лежала мёртвая `local function loadProfile(profile)` -- ни одного вызова в
+-- аддоне. Загрузку профиля делает выпадающий список в окне настроек (он пишет iTFConfig.layout и зовёт
+-- iTF:updateFrames()), а полный сброс -- '/itf reset' через iTF:LoadDefaults(true). Третьего пути не было.
 local optionFuncs = {}
 
 local function MainFrameBG(show)
@@ -142,7 +150,6 @@ local function spairs(t, order)
         end
     end
 end
-local bindings = {}
 local customCondTemp = {
 	['name'] = '',
 	['weight'] = 90,
@@ -1796,7 +1803,6 @@ function optionFuncs.getOptions()
 								iTF:updateFrames('auraIcon')
 							end,
 							get = function()
-								local values = optionFuncs.getValues('sorting')
 								local k = tostring(iTFConfig.layout.icon.sort.time)..tostring(iTFConfig.layout.icon.sort.ascending)
 								return k
 							end,
@@ -2394,14 +2400,20 @@ function iTF:toggleConfig(forceHide)
 			f.scrollFrame:SetVerticalScroll(value)
 		end)
 		local scrollFunc = function(self, delta)
+			--! WotLK fix (06.10): `local min, max = ...:GetMinMaxValues()` стояло ВНУТРИ ветки «вниз». В ветке
+			-- «вверх» эти имена уже вне области видимости, поэтому `max(0, value)` разрешался в ГЛОБАЛЬНЫЙ max
+			-- (алиас math.max в 3.3.5), а `min` не читался вообще -- мёртвый локал. Работало это только потому,
+			-- что у полос прокрутки окна минимум равен 0: зажим снизу был вшит константой, а не взят у полосы.
+			-- Теперь пределы читаются один раз и зажимают с обеих сторон по настоящим значениям. Три таких
+			-- обработчика в файле -- этот, contentScrollFunc и scrollFunc внутри getFrame.
+			local min, max = f.slider:GetMinMaxValues()
 			if delta == -1 then --down
 				local value = f.slider:GetValue()+20
-				local min, max = f.slider:GetMinMaxValues()
 				value = math.min(value, max)
 				f.slider:SetValue(value)
 			else -- up
 				local value = f.slider:GetValue()-20
-				value = max(0, value)
+				value = math.max(value, min)
 				f.slider:SetValue(value)
 			end
 		end
@@ -2439,14 +2451,15 @@ function iTF:toggleConfig(forceHide)
 			f.contentScrollFrame:SetVerticalScroll(value)
 		end)
 		local contentScrollFunc = function(self, delta)
+			-- пределы берём до ветвления, иначе «вверх» уходит в глобальный max -- см. scrollFunc выше.
+			local min, max = f.contentSlider:GetMinMaxValues()
 			if delta == -1 then --down
 				local value = f.contentSlider:GetValue()+20
-				local min, max = f.contentSlider:GetMinMaxValues()
 				value = math.min(value, max)
 				f.contentSlider:SetValue(value)
 			else -- up
 				local value = f.contentSlider:GetValue()-20
-				value = max(0, value)
+				value = math.max(value, min)
 				f.contentSlider:SetValue(value)
 			end
 		end
@@ -2691,14 +2704,16 @@ function iTF:toggleConfig(forceHide)
 						f.content[type][frame].scrollFrame:SetVerticalScroll(value)
 					end)
 					local function scrollFunc(self, delta)
+						-- пределы берём до ветвления, иначе «вверх» уходит в глобальный max -- см. scrollFunc
+						-- в toggleConfig.
+						local min, max = f.content[type][frame].slider:GetMinMaxValues()
 						if delta == -1 then --down
 							local value = f.content[type][frame].slider:GetValue()+20
-							local min, max = f.content[type][frame].slider:GetMinMaxValues()
 							value = math.min(value, max)
 							f.content[type][frame].slider:SetValue(value)
 						else -- up
 							local value = f.content[type][frame].slider:GetValue()-20
-							value = max(0, value)
+							value = math.max(value, min)
 							f.content[type][frame].slider:SetValue(value)
 						end
 					end
@@ -2797,7 +2812,6 @@ function iTF:toggleConfig(forceHide)
 					f.content.anchor[argCount]:SetSize(146,60)
 					f.content.anchor[argCount]:SetBackdropColor(0,0,0,0)
 					f.content.anchor[argCount]:SetBackdropBorderColor(0,0,0,0)
-					local name = v.name
 					local id = getFrame(v.type, true)
 					if v.type == 'button' then
 						f.content[v.type][id]:SetSize(100, 20)
@@ -3172,7 +3186,7 @@ function iTF:toggleConfig(forceHide)
 								f.content.button[okButton].inUse = 'editbox'
 								f.content.button[okButton]:SetScript('OnClick', function()
 									if v.edit then
-										local func, e = getFunc(f.content[v.type][id]:GetText())
+										local _, e = getFunc(f.content[v.type][id]:GetText())
 										if e then
 											iTF:print(L.errorCustomCode)
 										else
@@ -3201,7 +3215,7 @@ function iTF:toggleConfig(forceHide)
 								f.content.text[errorText]:SetText('')
 								f.content.text[errorText]:Show()
 								f.content[v.type][id]:SetScript('OnTextChanged', function(self)
-									local func, e = getFunc(self:GetText())
+									local _, e = getFunc(self:GetText())
 									if e then
 										f.content.text[errorText]:SetText(e)
 										if not v.edit then

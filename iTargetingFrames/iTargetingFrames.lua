@@ -130,7 +130,7 @@ function indicatorFuncs:border(cond, unitID, color, hideCurrentCond, forceRefres
 	end
 	if hideCurrentCond then
 		iTF.frames[unitID].waitingFor.border[cond] = nil
-		local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.border)
+		local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.border)
 		if c then
 			cond = c
 			color = iTF.frames[unitID].waitingFor.border[cond].color
@@ -146,7 +146,7 @@ function indicatorFuncs:border(cond, unitID, color, hideCurrentCond, forceRefres
 				['weight'] = indicatorPrios[cond],
 				['color'] = color
 			}
-			local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.border)
+			local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.border)
 			if c == iTF.frames[unitID].borderInUse then
 				return
 			end
@@ -170,7 +170,7 @@ function indicatorFuncs:opacity(cond, unitID, alpha, hideCurrentCond, forceRefre
 	end
 	if hideCurrentCond then
 		iTF.frames[unitID].waitingFor.alpha[cond] = nil
-		local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.alpha)
+		local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.alpha)
 		if c then
 			cond = c
 			alpha = iTF.frames[unitID].waitingFor.alpha[cond].alpha
@@ -186,7 +186,7 @@ function indicatorFuncs:opacity(cond, unitID, alpha, hideCurrentCond, forceRefre
 				['weight'] = indicatorPrios[cond],
 				['alpha'] = alpha
 			}
-			local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.alpha)
+			local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.alpha)
 			if c == iTF.frames[unitID].alphaInUse then
 				return
 			end
@@ -210,7 +210,7 @@ function indicatorFuncs:glows(k, cond, unitID, color, hideCurrentCond, forceRefr
 	end
 	if hideCurrentCond then
 		iTF.frames[unitID].waitingFor[k][cond] = nil
-		local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor[k])
+		local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor[k])
 		if c then
 			cond = c
 			color = iTF.frames[unitID].waitingFor[k][cond].color
@@ -226,7 +226,7 @@ function indicatorFuncs:glows(k, cond, unitID, color, hideCurrentCond, forceRefr
 				['weight'] = indicatorPrios[cond],
 				['color'] = color
 			}
-			local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor[k])
+			local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor[k])
 			if c == iTF.frames[unitID].topFrame[k].inUse then
 				return
 			end
@@ -252,7 +252,7 @@ function indicatorFuncs:statusbar(cond, unitID, color, hideCurrentCond, forceRef
 	end
 	if hideCurrentCond then
 		iTF.frames[unitID].waitingFor.statusbar[cond] = nil
-		local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.statusbar)
+		local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.statusbar)
 		if c then
 			cond = c
 			color = iTF.frames[unitID].waitingFor.statusbar[cond].color
@@ -268,7 +268,7 @@ function indicatorFuncs:statusbar(cond, unitID, color, hideCurrentCond, forceRef
 				['weight'] = indicatorPrios[cond],
 				['color'] = color
 			}
-			local w,c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.statusbar)
+			local _, c = indicatorFuncs:getHighest(iTF.frames[unitID].waitingFor.statusbar)
 			if c == iTF.frames[unitID].healthBar.inUse then
 				return
 			end
@@ -633,12 +633,9 @@ local function updateIndicator(unitID, cond, customCondIndicators, showCustom)
 			iTF.focusTarget = show and unitID or nil
 		end
 	elseif cond and customConditionals[cond] then
-		--local func, error = getFunction(customConditionals[cond].func, unitID)
-		--local func, error = getFunction(customConditionals[cond].func)
-		--if error then
-			--iTF:print('Custom conditional' .. cond ..  'causing error: ' .. error)
-			--return
-		--end
+		--! WotLK fix (06.10): отсюда убраны шесть закомментированных строк -- прошлый подход, который звал
+		-- getFunction (loadstring) на КАЖДУЮ оценку условия. Компиляция теперь одна, при загрузке списка
+		-- (`iTargetingFrames.lua:2056`), а здесь зовётся уже готовая `.funct`; текст ошибки печатается там же.
 		-- A custom conditional reads through customData, which only exists once updateUnitID has filled the
 		-- frame. Until then there is nothing to evaluate, and indexing the nil is what spammed the error.
 		local customData = iTF.frames[unitID] and iTF.frames[unitID].customData
@@ -738,7 +735,7 @@ end
 --! WotLK fix (05.10): сверяемся с САМИМ атрибутом, а не с теневым полем f.denyAttr. Раньше «мемо не
 -- заполнено» и «не запрещён» были одним и тем же nil, а refreshNpcBlacklist обнуляло мемо перед
 -- проходом -- и проверка `if f.denyAttr == denied then return end` съедала ровно СТИРАЮЩУЮ запись.
--- Итог в игре: '/itf unignore' (и крестик в окне, options.lua:3437) оставлял 'itfdenyitfN' = 1,
+-- Итог в игре: '/itf unignore' (и крестик в окне, options.lua:3452) оставлял 'itfdenyitfN' = 1,
 -- '_itfupdate' продолжал освобождать клетку, а слот itfN умирал НАВСЕГДА -- любой следующий моб,
 -- которому клиент выдал этот nameplateN, вечно висел в очереди (alive = 0) без рамки, и починить это
 -- мог только /reload. Самолечения не было по той же причине: updateUnitID зовёт applyDenyAttr, а тот
@@ -845,23 +842,22 @@ local function utf8_charbytes (s, i)
    local c = string.byte(s, i)
    
    -- determine bytes needed for character, based on RFC 3629
+   --! WotLK fix (06.10): отсюда убраны чтения продолжающих байт (`local c2/c3/c4 = s:byte(...)`). В
+   -- библиотеке utf8, откуда функция скопирована, они проверяли, что продолжение действительно 0x80..0xBF;
+   -- здесь результат никуда не шёл -- ни одной проверки, ни одного возврата. То есть на каждый многобайтный
+   -- символ делалось 1..3 вызова string.byte впустую, а функция зовётся из utf8_len/utf8_sub на каждый
+   -- символ имени. Длину это не меняло и не меняет: решение принимает только первый байт.
    if c > 0 and c <= 127 then
       -- UTF8-1
       return 1
    elseif c >= 194 and c <= 223 then
       -- UTF8-2
-      local c2 = string.byte(s, i + 1)
       return 2
    elseif c >= 224 and c <= 239 then
       -- UTF8-3
-      local c2 = s:byte(i + 1)
-      local c3 = s:byte(i + 2)
       return 3
    elseif c >= 240 and c <= 244 then
       -- UTF8-4
-      local c2 = s:byte(i + 1)
-      local c3 = s:byte(i + 2)
-      local c4 = s:byte(i + 3)
       return 4
    end
 end
@@ -873,9 +869,9 @@ local function utf8_len (s, chars)
    local len = 0
    
    while pos <= bytes and len ~= chars do
-      local c = string.byte(s,pos)
+      -- (06.10) здесь тоже стояло `local c = string.byte(s,pos)` впустую: длину считает len, шаг -- utf8_charbytes.
       len = len + 1
-      
+
       pos = pos + utf8_charbytes(s, pos)
    end
    
@@ -2051,13 +2047,20 @@ function iTF:updateFrames(toUpdate)
 				if not ignore then
 					indicatorPrios[k] = v.weight
 					if v.update then --nil check for earlier versions TO DO: remove on v0.5 or something
-						local func, error = getFunction(v.func)
+						--! WotLK fix (06.10): второе значение getFunction -- это текст ошибки loadstring
+						-- (`iTargetingFrames.lua:91`). Раньше он попадал в локал с именем `error` -- заодно
+						-- затеняя стандартную функцию в этой области -- и никуда не шёл. Игрок получал
+						-- «something is wrong with Custom conditional: X» без причины, хотя причина уже была
+						-- на руках. Теперь она в самом сообщении; при пустой причине хвост не рисуем -- чанк
+						-- может скомпилироваться и вернуть nil, тогда err тоже nil.
+						local func, err = getFunction(v.func)
 						if func then
 							conditionals[v.update][k] = v
 							customConditionals[k] = v
 							customConditionals[k].funct = func
 						else
-							iTF:print('Error, something is wrong with Custom conditional: ' .. k)
+							iTF:print('Error, something is wrong with Custom conditional: ' .. k
+								.. (err and (' -- ' .. tostring(err)) or ''))
 						end
 					else
 						iTF:print('Update function not found for ',k,', adding ',iTF.indicatorUpdateFuncs[k],'.')
