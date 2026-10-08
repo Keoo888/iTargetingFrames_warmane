@@ -6,7 +6,10 @@ end
 ACVar.Skins.ElvUI = function()
     if not ElvUI then return end
 
-    local E, L, V, P, G = unpack(ElvUI)
+    --! WotLK fix (06.10): из стандартной шапки `local E, L, V, P, G = unpack(ElvUI)` остался только E.
+    -- L/V/P/G -- локали и три таблицы дефолтов профиля; скин в них не пишет и из них не читает, своих
+    -- настроек у него нет. Тот же приём, что в AWElvUINameplates.lua:59. Понадобятся -- вернуть в строку.
+    local E = unpack(ElvUI)
     local S = E:GetModule("Skins")
     local _G = _G
     local match = string.match

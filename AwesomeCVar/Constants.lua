@@ -67,6 +67,7 @@ ACVar.CONSTANTS = {
 -- нет, поэтому отсутствовать переменная может только если фича сама пропустила площадку (в журнале тогда
 -- "... is not executable client code, feature skipped"). UI гасит такую строку по факту (ACVar:cvarExists),
 -- а awNeeds нужен, чтобы сказать, из какого переключателя сборки она пришла.
+
 ACVar.CVARS = {
     [L.CATEGORY_CAMERA] = {
         { name = "cameraFov", label = L.CVAR_LABEL_CAMERA_FOV, desc = L.DESC_CAMERA_FOV, type = "slider", min = 60, max = 150, step = 1, default = 100, awNeeds = "профиль: camera" },
@@ -76,6 +77,7 @@ ACVar.CVARS = {
     [L.CATEGORY_NAMEPLATES] = {
         { name = "info", label = L.CVAR_LABEL_INFO, desc = L.DESC_INFO, type = "description" },
         { name = "nameplateDistance", label = L.CVAR_LABEL_NAMEPLATE_DISTANCE, desc = L.DESC_NAMEPLATE_DISTANCE, type = "slider", min = 41, max = 100, step = 1, default = 43, awNeeds = "профиль: scope=4" },
+        -- Строки ядра стекинга сняты 08.10: перенос свёрнут (TECHNICAL п. 80), переменных dll под них нет.
     },
     [L.CATEGORY_INTERACTION] = {
         { name = "interactionMode", label = L.CVAR_LABEL_INTERACTION_MODE, desc = L.DESC_INTERACTION_MODE, type = "mode", modes = { { value = 0, label = L.MODE_LABEL_PLAYER_RADIUS }, { value = 1, label = L.MODE_LABEL_CONE_ANGLE } }, default = 1, awNeeds = "профиль: interact" },
