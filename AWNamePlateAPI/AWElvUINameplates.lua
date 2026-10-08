@@ -328,18 +328,23 @@ local function awConfigureCastBar(self, frame)
 	end
 end
 
--- PZ Nameplates.lua:195-206: развеска на каждую новую рамку. Пост-хук, а не замена OnCreated:
--- `oldCastBar` присваивается внутри стокового OnCreated (Nameplates.lua:610), так что после него он уже
--- есть, и HookScript здесь добавочный -- пересоздавать чужой метод не нужно.
+-- PZ Nameplates.lua:195-206: развеска на каждую новую рамку. Зовётся из нашей обёртки над OnCreated
+-- (см. install() ниже), а не пост-хуком: `oldCastBar` присваивается внутри стокового OnCreated
+-- (Nameplates.lua:647), так что к этому моменту он уже есть.
+-- Идемпотентность обязательна: наш guard может оказаться вложенным (см. keepGuardTop ниже), и тогда одна
+-- рамка проходит через него дважды. Флаг ставится на нативную полосу -- на то, чего касается второй
+-- комплект HookScript.
 local function onCreated(_, plate)
-	STAT.created = STAT.created + 1
 	local np = NP()
 	if not np then return end
 
 	local uf = plate.UnitFrame
 	local native = uf and uf.oldCastBar
 	if not native or not uf.CastBar then return end
+	if native.awCastHooked then return end
+	native.awCastHooked = true
 
+	STAT.created = STAT.created + 1
 	STAT.hooked = STAT.hooked + 1
 	native:HookScript("OnShow", onNativeShow)
 	native:HookScript("OnHide", onNativeHide)
@@ -347,6 +352,29 @@ local function onCreated(_, plate)
 
 	-- свою анимацию ElvUI выключаем: полосу ведёт нативная (PZ Elements/CastBar.lua:205)
 	uf.CastBar:SetScript("OnUpdate", nil)
+end
+
+-- Обёртка над OnCreated держится на уровне файла, а не внутри install(): её надо уметь переставить наверх
+-- и после того, как свои пост-хуки навесили другие аддоны (ElvUI_ProjectZidras
+-- `Modules/Nameplates/Nameplates.lua:255` делает `hooksecurefunc(NP, "OnCreated", OnCreatedHook)`).
+local guarded
+local function wrapCreated(np, base)
+	local w = function(self, plate)
+		if self.CreatedPlates and self.CreatedPlates[plate] then return end
+		base(self, plate)
+		onCreated(self, plate)
+	end
+	np.OnCreated = w
+	guarded = w
+end
+
+-- Чужой wrapper поверх нашего значит, что чужой пост-хук отработает и на пропущенном создании: PZ в этом
+-- же коде снова обвешивает нативную полосу вторым комплектом хуков. Раз в тик проверяем, что guard
+-- остался самым верхним слоем, и иначе встаём над ним. Вложенность при этом безвредна: развеска
+-- идемпотентна (флаг выше), а guard во второй раз просто не находит чего добавлять.
+local function keepGuardTop(np)
+	if not np or np.OnCreated == guarded then return end
+	wrapCreated(np, np.OnCreated)
 end
 
 local function refresh(np, uf)
@@ -429,6 +457,8 @@ local function onUpdate(_, e)
 	elapsed = elapsed + (e or 0)
 	if elapsed < POLL then return end
 	elapsed = 0
+	local np = NP()
+	if np then keepGuardTop(np) end
 	sweep()
 end
 
@@ -445,7 +475,7 @@ install = function()
 		end)
 	end
 
-	-- Полоса каста -- блок PZ целиком (его Nameplates.lua:240-276): замена Update_CastBar, пост-хук на
+	-- Полоса каста -- блок PZ целиком (его Nameplates.lua:240-276): замена Update_CastBar, обёртка над
 	-- OnCreated для нативной полосы, замена OnEvent/RegisterEvents/UnregisterAllEvents/UpdateCVars,
 	-- зачистка старых событий на уже созданных рамках и снятая собственная анимация. Список методов
 	-- проверяется здесь, а не в npReady: без одного из этих шести идентичность обязана остаться рабочей.
@@ -454,7 +484,19 @@ install = function()
 		CAST_SKIP = castWhy
 	else
 		CAST_SKIP = nil
-		hooksecurefunc(np, "OnCreated", onCreated)
+		-- OnCreated обязан отработать ровно один раз на рамку. Сам ElvUI guard-ит только свой опрос
+		-- (`findNewPlate` смотрит `CreatedPlates[frame]`, Nameplates.lua:880-888), а сторонний потребитель
+		-- нашего NAME_PLATE_CREATED зовёт метод напрямую и про этот guard не знает:
+		-- ElvUI_Extras.lua:684-686 на каждое событие вызывает `NP:OnCreated(plate)`. Второй проход читает
+		-- `frame:GetRegions()` у рамки, из которой первый проход уже перепривязал RaidIcon в свой unitFrame
+		-- (Nameplates.lua:655), -- областей стало на одну меньше, одиннадцатая (EliteIcon) nil, и OnCreated
+		-- падает на Nameplates.lua:644, не дойдя до :646-671. Рамка остаётся с полусобранным и спрятанным
+		-- unitFrame, который больше никто не достроит: плейты мигают и пропадают. Замер тестера 07.10:
+		-- именно этот error, Count 68.
+		-- Обёртка, а не пост-хук: hooksecurefunc вызывает хук даже когда обёртка вышла раньше подлинника,
+		-- и нативная полоса обросла бы вторым комплектом HookScript. Сама обёртка и её перестановка наверх
+		-- (keepGuardTop) -- выше по файлу, у onCreated.
+		wrapCreated(np, np.OnCreated)
 		hooksecurefunc(np, "Configure_CastBar", awConfigureCastBar)
 		np.Update_CastBar = awUpdateCastBar
 		np.OnEvent = awOnEvent
