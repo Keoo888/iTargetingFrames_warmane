@@ -47,7 +47,10 @@ Alongside the addon the repository carries the client library it is written for,
 publishes the `nameplateN` unit tokens, the `/interact` channel and the yard labels,
 **AwesomeCVar** is the `/awesome` window with the controls the library registers and
 with the tab those labels are set up on — and `AwesomeWotlkPatch.exe`, the small program
-that writes the three places in `Wow.exe` so the client loads the library at all. The addon loads
+that writes the three places in `Wow.exe` so the client loads the library at all. Both binaries here are built from
+[keoo88/awesome_wotlk](https://gitlab.com/keoo88/awesome_wotlk), and [its release v0.5](https://gitlab.com/keoo88/awesome_wotlk/-/releases/v0.5)
+lists the size, md5 and sha256 of exactly these two files together with the command and the toolset that
+reproduce them. The addon loads
 without them and simply falls back to the stock 3.3.5a lookups, which can put one
 unit into several frames; with them the tokens stay stable for the whole session.
 Nothing here is mandatory — every call into the library is guarded, so a client
@@ -216,7 +219,10 @@ API 3.3.5a.
 `nameplateN`, канал `/interact` и подписи дистанции, **AwesomeCVar** — окно `/awesome`
 с контролами, которые библиотека регистрирует, и с вкладкой, на которой эти подписи
 настраиваются, — и `AwesomeWotlkPatch.exe`, маленькая программа, которая вписывает в
-`Wow.exe` три места, чтобы клиент вообще загрузил библиотеку. Без них аддон тоже загрузится, но уйдёт в штатные
+`Wow.exe` три места, чтобы клиент вообще загрузил библиотеку. Обе эти программы собраны из
+[keoo88/awesome_wotlk](https://gitlab.com/keoo88/awesome_wotlk), и в [релизе `v0.5` того репозитория](https://gitlab.com/keoo88/awesome_wotlk/-/releases/v0.5)
+лежат размер, md5 и sha256 ровно тех файлов, что идут в этом архиве, -- вместе с командой сборки и тулсетом.
+Без них аддон тоже загрузится, но уйдёт в штатные
 поиски неймплейтов 3.3.5a и может показать одного юнита в нескольких рамках; с ними
 токены остаются стабильными всю сессию. Обязательного тут ничего нет — каждый вызов
 в библиотеку защищён, и на клиенте без неё просто теряются соответствующие контролы.
