@@ -43,10 +43,11 @@ targeted later expansions; here it is adapted to what the 3.3.5a API actually
 provides.
 
 Alongside the addon the repository carries the client library it is written for,
-`AwesomeWotlkLib.dll`, and the two small addons that read it: **AWNamePlateAPI**
+`AwesomeWotlkLib.dll`, the two small addons that read it: **AWNamePlateAPI**
 publishes the `nameplateN` unit tokens, the `/interact` channel and the yard labels,
 **AwesomeCVar** is the `/awesome` window with the controls the library registers and
-with the tab those labels are set up on. The addon loads
+with the tab those labels are set up on — and `AwesomeWotlkPatch.exe`, the small program
+that writes the three places in `Wow.exe` so the client loads the library at all. The addon loads
 without them and simply falls back to the stock 3.3.5a lookups, which can put one
 unit into several frames; with them the tokens stay stable for the whole session.
 Nothing here is mandatory — every call into the library is guarded, so a client
@@ -160,11 +161,16 @@ labels actually see, which is the quickest way to find out why one of them is mi
 1. Download the latest release (or clone this repository) and unpack it.
 2. Move `AwesomeWotlkLib.dll` to the client root, next to `Wow.exe`. Its settings are
    compiled in, so there is no config file to place.
-3. Move the three addon folders into:
+3. Run `AwesomeWotlkPatch.exe` from the same folder. It writes three bytes into `Wow.exe`
+   so the client loads the library on start — without this step the dll is a file the game
+   never reads. The patcher saves `Wow.exe.bak` next to it before writing, repeats do no
+   work ("Patch is already applied"), and ask before touching anything that is not the
+   3.3.5a (12340) client.
+4. Move the three addon folders into:
    ```
    \Interface\AddOns\
    ```
-4. Enable them on the character select screen and start the game. `/itf` opens the
+5. Enable them on the character select screen and start the game. `/itf` opens the
    frames, `/awesome` opens the controls.
 
 The final path has to look like `\Interface\AddOns\iTargetingFrames\iTargetingFrames.toc`.
@@ -205,11 +211,12 @@ The final path has to look like `\Interface\AddOns\iTargetingFrames\iTargetingFr
 писался под более поздние дополнения; здесь он приведён к тому, что реально умеет
 API 3.3.5a.
 
-Кроме аддона в репозитории лежит библиотечка для клиента, `AwesomeWotlkLib.dll`, и
+Кроме аддона в репозитории лежит библиотечка для клиента, `AwesomeWotlkLib.dll`,
 два маленьких аддона, которые из неё читают: **AWNamePlateAPI** отдаёт токены юнитов
 `nameplateN`, канал `/interact` и подписи дистанции, **AwesomeCVar** — окно `/awesome`
 с контролами, которые библиотека регистрирует, и с вкладкой, на которой эти подписи
-настраиваются. Без них аддон тоже загрузится, но уйдёт в штатные
+настраиваются, — и `AwesomeWotlkPatch.exe`, маленькая программа, которая вписывает в
+`Wow.exe` три места, чтобы клиент вообще загрузил библиотеку. Без них аддон тоже загрузится, но уйдёт в штатные
 поиски неймплейтов 3.3.5a и может показать одного юнита в нескольких рамках; с ними
 токены остаются стабильными всю сессию. Обязательного тут ничего нет — каждый вызов
 в библиотеку защищён, и на клиенте без неё просто теряются соответствующие контролы.
@@ -321,11 +328,16 @@ API 3.3.5a.
 1. Скачайте последний релиз (или клонируйте репозиторий) и распакуйте архив.
 2. Положите `AwesomeWotlkLib.dll` в корень клиента, рядом с `Wow.exe`. Настройки её
    зашиты, файла конфигурации нет.
-3. Положите три папки аддонов в:
+3. Запустите `AwesomeWotlkPatch.exe` из той же папки. Он вписывает в `Wow.exe` три места,
+   чтобы клиент загрузил библиотеку на старте — без этого шага dll просто лежит рядом
+   файлом, который игра не читает. Перед записью патчер сохраняет `Wow.exe.bak` рядом,
+   повторный запуск ничего не делает («Patch is already applied»), а клиент, который по
+   заголовку не похож на 3.3.5a (12340), патчер спрашивает отдельно, а не молча правит.
+4. Положите три папки аддонов в:
    ```
    \Interface\AddOns\
    ```
-4. Включите их на экране выбора персонажа и запустите игру. `/itf` — рамки,
+5. Включите их на экране выбора персонажа и запустите игру. `/itf` — рамки,
    `/awesome` — контролы.
 
 Итоговый путь должен выглядеть так: `\Interface\AddOns\iTargetingFrames\iTargetingFrames.toc`.
