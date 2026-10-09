@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://github.com/user-attachments/assets/cdfc0391-6bb4-45dc-9666-bd31e14bc374" alt="iTargetingFrames" width="260">
+  <img src="img/cdfc0391-26434.png" alt="iTargetingFrames" width="260">
 </p>
 
 <p align="center">
@@ -58,7 +58,7 @@ without it just loses those controls.
 
 #### Frame Layout
 
-<img width="902" height="773" alt="settings" src="https://github.com/user-attachments/assets/726736cf-f6b6-46a0-93bb-c8186f6d8901" />
+<img width="902" height="773" alt="settings" src="img/726736cf-126197.png" />
 
 Position, row count, growth direction, spacing, width and height are all yours.
 Cap the number of frames you are willing to draw, or leave it uncapped; optionally
@@ -123,18 +123,18 @@ raid icons. Text flags cover none, outline, thick outline and monochrome.
 shows them. `nameplateDistance` sets how far the client keeps a nameplate alive, so
 it is the range at which a frame can appear at all.
 
-<img width="1145" height="860" alt="nameplates" src="https://github.com/user-attachments/assets/f7fbc2cb-329c-4da7-b945-945cb859e98a" />
+<img width="1145" height="860" alt="nameplates" src="img/f7fbc2cb-205600.png" />
 
 `cameraFov` opens the field of view. `cameraIndirectVisibility` dims the models
 standing between the camera and your target, and `cameraIndirectAlpha` sets how
 strong that dim is.
 
-<img width="1148" height="868" alt="camera" src="https://github.com/user-attachments/assets/1ff930d7-97fe-497c-9a2a-88538573927a" />
+<img width="1148" height="868" alt="camera" src="img/1ff930d7-182168.png" />
 
 `interactionMode` and `interactionAngle` drive `/interact`, which takes the unit you
 are actually aiming at instead of the closest raw target.
 
-<img width="1146" height="861" alt="interaction" src="https://github.com/user-attachments/assets/10408e21-ccc5-4e87-94d5-673211a46532" />
+<img width="1146" height="861" alt="interaction" src="img/10408e21-176375.png" />
 
 `distanceDisplay` is the single switch for the yard numbers: the library measures the
 distance to every visible nameplate and to your target and focus, and **AWNamePlateAPI**
@@ -226,7 +226,7 @@ API 3.3.5a.
 
 #### Расположение рамок (Frame Layout)
 
-<img width="902" height="773" alt="settings" src="https://github.com/user-attachments/assets/726736cf-f6b6-46a0-93bb-c8186f6d8901" />
+<img width="902" height="773" alt="settings" src="img/726736cf-126197.png" />
 
 Позиция, число строк, направление роста, отступы, ширина и высота — всё
 настраивается. Можно ограничить число одновременно рисуемых рамок или не
@@ -290,18 +290,18 @@ API 3.3.5a.
 `/awesome` их показывает. `nameplateDistance` задаёт, как далеко клиент держит
 неймплей живым, — то есть это дистанция, на которой рамка вообще может появиться.
 
-<img width="1145" height="860" alt="nameplates" src="https://github.com/user-attachments/assets/f7fbc2cb-329c-4da7-b945-945cb859e98a" />
+<img width="1145" height="860" alt="nameplates" src="img/f7fbc2cb-205600.png" />
 
 `cameraFov` расширяет поле зрения. `cameraIndirectVisibility` затемняет модели,
 стоящие между камерой и вашей целью, а `cameraIndirectAlpha` задаёт, насколько
 сильно затемнять.
 
-<img width="1148" height="868" alt="camera" src="https://github.com/user-attachments/assets/1ff930d7-97fe-497c-9a2a-88538573927a" />
+<img width="1148" height="868" alt="camera" src="img/1ff930d7-182168.png" />
 
 `interactionMode` и `interactionAngle` управляют `/interact` — берётся юнит, в
 который вы на самом деле целитесь, а не ближайший по сырому таргету.
 
-<img width="1146" height="861" alt="interaction" src="https://github.com/user-attachments/assets/10408e21-ccc5-4e87-94d5-673211a46532" />
+<img width="1146" height="861" alt="interaction" src="img/10408e21-176375.png" />
 
 `distanceDisplay` — единственный тумблер цифр в ярдах: библиотека считает дистанцию до
 каждого видимого неймплея и до цели с фокусом, а **AWNamePlateAPI** рисует то, что
