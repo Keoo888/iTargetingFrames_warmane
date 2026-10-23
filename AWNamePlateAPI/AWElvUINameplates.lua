@@ -392,7 +392,7 @@ local function refresh(np, uf)
 end
 
 -- Одна рамка за проход. Возвращает true, если что-то из идентичности изменилось и рамку надо перерисовать.
-local function bind(uf, token, guid, name)
+local function bind(np, uf, token, guid, name)
 	local changed = false
 
 	if uf.nameplateUnit ~= token then
@@ -401,7 +401,17 @@ local function bind(uf, token, guid, name)
 	end
 
 	if uf.guid ~= guid then
-		uf.guid = guid
+		-- ElvUI Egor'а (gitlab.com/keoo88/elvui) ищет рамку по guid через счётчик `NP.GUIDPlateCount`
+		-- (`Nameplates.lua:68`), а ведёт его только `NP:SetPlateGUID` (`:367`). GUID, записанный мимо
+		-- сеттера, не попадает в счётчик, и `NP:SearchNameplateByGUID` (`:997`) выходит до обхода рамок
+		-- -- события LibAuraInfo (наложение, обновление, снятие ауры) до рамки не доходят, и дебафф
+		-- дотягивает старый отсчёт: «1.3» вместо 10.3 (тестер, 23.10.2026). В стоковом 6.09 сеттера нет,
+		-- там поиск сам перебирает видимые плашки, поэтому прежняя запись остаётся
+		if np.SetPlateGUID then
+			np:SetPlateGUID(uf, guid)
+		else
+			uf.guid = guid
+		end
 		uf.unit = token
 		changed = true
 	elseif not uf.unit then
@@ -430,7 +440,7 @@ local function bindOne(np, plate, token)
 	plate[FIELD] = token
 	local guid = UnitGUID and UnitGUID(token)
 	local name = UnitName and UnitName(token)
-	if guid and bind(uf, token, guid, name) then
+	if guid and bind(np, uf, token, guid, name) then
 		refresh(np, uf)
 	end
 end
