@@ -718,7 +718,9 @@ local function round(num, idp)
 	return math.floor(num * mult + 0.5) / mult
 end
 --! WotLK fix: NPC blacklist. Keys are the same as for priority names: unit name or npcID. The frame is
--- protected, so only the snippet may hide it -- the verdict travels there in attribute 'itfdenyitfN'.
+-- protected, so only the snippet may hide it -- the verdict travels in attribute 'itfdenyitfN', written
+-- out of combat; in combat the frame is faded instead (see applyDenyAttr: nothing crosses into the snippet
+-- there).
 -- No leading underscore: inside a snippet GetAttribute returns nil for any '_' name, silently
 -- (RestrictedFrames.lua:188-191). See docs/TECHNICAL.md item 56 (the chain itself: item 41).
 function iTF:npcDenied(unitID)
@@ -735,7 +737,7 @@ end
 --! WotLK fix (05.10): сверяемся с САМИМ атрибутом, а не с теневым полем f.denyAttr. Раньше «мемо не
 -- заполнено» и «не запрещён» были одним и тем же nil, а refreshNpcBlacklist обнуляло мемо перед
 -- проходом -- и проверка `if f.denyAttr == denied then return end` съедала ровно СТИРАЮЩУЮ запись.
--- Итог в игре: '/itf unignore' (и крестик в окне, options.lua:3452) оставлял 'itfdenyitfN' = 1,
+-- Итог в игре: '/itf unignore' (и крестик в окне, options.lua:3452) оставлял вердикт включённым,
 -- '_itfupdate' продолжал освобождать клетку, а слот itfN умирал НАВСЕГДА -- любой следующий моб,
 -- которому клиент выдал этот nameplateN, вечно висел в очереди (alive = 0) без рамки, и починить это
 -- мог только /reload. Самолечения не было по той же причине: updateUnitID зовёт applyDenyAttr, а тот
@@ -743,14 +745,40 @@ end
 function iTF:applyDenyAttr(unitID, noRerun)
 	local f = iTF.frames[unitID]
 	if not f or not iTF.mainFrame then return end
-	local attr = 'itfdenyitf' .. f.nameplateID
 	local denied = iTF:npcDenied(unitID) and 1 or nil
 	f.denyAttr = denied -- только для дампа '/itf deny', решение на нём больше не держится
-	if iTF.mainFrame:GetAttribute(attr) == denied then return end
+	--! WotLK fix (26.10): в бою вердикт до сниппета не доедет ни одним путём -- запись атрибута на
+	-- защищённый mainFrame клиент молча глотает (дамп 26.10: denied=YES memo=1 attr=nil), а ссылку на
+	-- незащищённый кадр-носитель сниппет в бою получить не может ("Invalid frame handle",
+	-- RestrictedFrames.lua:143-151). Поэтому в бою вердикт проводится альфой: SetAlpha не защищена и
+	-- работает всегда. Клетка гаснет сразу, слот освободит ближайший _itfupdate вне боя.
+	if InCombatLockdown() then
+		if denied then
+			if f:GetAlpha() ~= 0 then f:SetAlpha(0) end
+			f.denyAlpha = true
+		elseif f.denyAlpha then
+			f:SetAlpha(1)
+			f.denyAlpha = nil
+		end
+		return
+	end
+	local attr = 'itfdenyitf' .. f.nameplateID
+	if iTF.mainFrame:GetAttribute(attr) == denied then
+		if f.denyAlpha then -- альфу, погашенную в бою, вернуть и при том же вердикте
+			f:SetAlpha(1)
+			f.denyAlpha = nil
+		end
+		return
+	end
 	iTF.mainFrame:SetAttribute(attr, denied)
+	if f.denyAlpha then
+		f:SetAlpha(1)
+		f.denyAlpha = nil
+	end
 	--! WotLK fix: the attribute does nothing by itself -- '_itfupdate' reads it, and that snippet runs
 	-- only on state transitions. Without this re-run an already filled cell would hold until the next
-	-- NAME_PLATE_UNIT. Paid only on a change of verdict, not on every refill.
+	-- NAME_PLATE_UNIT. Paid only on a change of verdict, not on every refill. Вне боя Execute разрешён;
+	-- в бою этот путь недоступен по определению (см. выше), поэтому и не вызывается.
 	if not noRerun then
 		iTF.mainFrame:Execute([[control:RunAttribute('_itfupdate')]])
 	end
@@ -780,6 +808,10 @@ function iTF:DebugDeny()
 		iTF:print('deny: mainFrame ещё нет -- атрибут ставить некуда')
 		return
 	end
+	--! WotLK fix (26.10): два числа объясняют «клетка появилась и пропала» без догадок. noplate --
+	-- заполнение до готовности плашки (вердикт ставится всё равно), late -- имя дошло уже показанной рамке.
+	iTF:print(string.format('deny: без плашки %d, имя позже %d',
+		iTF.statNoPlate or 0, iTF.statLate or 0))
 	for unitID, f in pairs(iTF.frames) do
 		if f.isShown then
 			iTF:print(string.format('deny: %s name=%s id=%s denied=%s memo=%s attr=%s',
@@ -1452,6 +1484,28 @@ function iTF:npcIDFromGUID(guid)
 	local hex = (guid:gsub('^0[xX]', ''))
 	return tonumber(string.sub(hex, 5, 10), 16)
 end
+--! WotLK fix (26.10): имя и npcID -- отдельной дверью, потому что вердикт запрета обязан быть известен
+-- ДО того, как secure-раскладка поставит клетку: в бою в сниппет ничего не проходит (ни атрибут, ни
+-- ссылка на кадр), и вердикт там проводится альфой уже после постановки. Возвращает true, если личность
+-- изменилась.
+function iTF:refreshIdentity(unitID)
+	local f = iTF.frames and iTF.frames[unitID]
+	if not f then return false end
+	local name = UnitName(unitID) or UNKNOWN
+	local guid = UnitGUID(unitID) or '0'
+	-- Число теперь гарантированно есть всегда: при UnitGUID() == nil (юнита уже нет) был пустой срез, и
+	-- string.format("%i", nil) ронял весь OnShow. Раскладку -- см. iTF:npcIDFromGUID выше.
+	local npcID = iTF:npcIDFromGUID(guid)
+	npcID = npcID and string.format("%i", npcID) or '0'
+	local changed = f.unitName ~= name or f.guid ~= guid or f.npcID ~= npcID
+	f.unitName, f.guid, f.npcID = name, guid, npcID
+	if f.customData then
+		f.customData.name = name
+		f.customData.guid = guid
+		f.customData.npcid = npcID
+	end
+	return changed
+end
 function iTF:updateUnitID(unitID)
 	iTF:hideAll(unitID)
 	-- C_NamePlate comes from the optional AWNamePlateAPI shim. Called straight from NAME_PLATE_UNIT_ADDED,
@@ -1459,14 +1513,17 @@ function iTF:updateUnitID(unitID)
 	-- plate -- same guard the 'target'/'focus' lookups above already use.
 	local getPlate = C_NamePlate.GetNamePlateForUnit
 	if not getPlate or not UnitExists(unitID) or not getPlate(unitID) then
+		--! WotLK fix (26.10): без плашки всё равно записываем личность и вердикт -- токен уже существует,
+		-- а постановку клетки решает атрибут, снятый здесь ДО неё. Тяжёлое заполнение (здоровье, ауры,
+		-- каст) ждёт плашки, как и раньше.
+		if UnitExists(unitID) and iTF.frames[unitID] then
+			iTF.statNoPlate = (iTF.statNoPlate or 0) + 1
+			iTF:refreshIdentity(unitID)
+			iTF:applyDenyAttr(unitID)
+		end
 		return
 	end
-	iTF.frames[unitID].unitName = UnitName(unitID) or UNKNOWN
-	iTF.frames[unitID].guid = UnitGUID(unitID) or '0'
-	-- Число теперь гарантированно есть всегда: при UnitGUID() == nil (юнита уже нет) был пустой срез, и
-	-- string.format("%i", nil) ронял весь OnShow. Раскладку -- см. iTF:npcIDFromGUID выше.
-	local npcID = iTF:npcIDFromGUID(iTF.frames[unitID].guid)
-	iTF.frames[unitID].npcID = npcID and string.format("%i", npcID) or '0'
+	iTF:refreshIdentity(unitID)
 	iTF.frames[unitID].waitingFor = newIndicatorState()
 	if UnitIsUnit(unitID, 'player') then
 		iTF.frames[unitID].isMe = true
@@ -1730,6 +1787,7 @@ function iTF:OnUpdate(elapsed)
 		-- and the method was a second table lookup -- both ran up to 60 times a tick and cannot change
 		-- mid-loop, because only ADDON_LOADED of the shim installs C_NamePlate.
 		local getPlate = nameplateAPI() and C_NamePlate.GetNamePlateForUnit
+		local combat = InCombatLockdown()
 		for k,v in pairs(iTF.frames) do
 			if UnitExists(k) then
 				if v.isShown then
@@ -1748,6 +1806,20 @@ function iTF:OnUpdate(elapsed)
 					-- from retriggering this every tick.
 					if getPlate and (not v.customData or (UnitGUID(k) or v.guid) ~= v.guid) and getPlate(k) then
 						iTF:updateUnitID(k)
+					end
+					--! WotLK fix (26.10): у только что объявленного плейта имя бывает ещё не разобрано
+					-- ("Unknown Being"), и тогда запись списка по имени не находится, а клетка уже поставлена.
+					-- Перечитываем, пока имя не станет настоящим, и пересматриваем вердикт только на смене.
+					if v.unitName == UNKNOWN or v.npcID == '0' then
+						if iTF:refreshIdentity(k) then
+							iTF.statLate = (iTF.statLate or 0) + 1
+							iTF:applyDenyAttr(k)
+						end
+					end
+					--! WotLK fix (26.10): в бою запретная клетка гасится альфой, но индикаторы альфы могут
+					-- вернуть ей видимость своим обновлением -- держим ноль, пока висит вердикт.
+					if combat and v.denyAttr and v:GetAlpha() ~= 0 then
+						v:SetAlpha(0)
 					end
 					iTF:updateHealth(k) --Health onUpdate, Since no UnitHealth events for nameplate unit
 					-- Same reason as the health poll right above: the client never sends UNIT_AURA for a
@@ -1789,7 +1861,7 @@ end--! WotLK fix: какой слот сетки занят этим фрейм�
 -- границу ходит. Прогон, который это решает, -- п. 13 д листа TEST-NAMEPLATE.
 local function frameSlot(frame)
 	-- имя целиком: писатель клеит 'itfslot'..токен, а токен -- это 'itf3', не '3' (тот же порядок, что у
-	-- 'itfdenyitfN' в цепочке запрета)
+	-- вердикта в атрибуте 'itfdenyitfN' в цепочке запрета)
 	local mf = iTF.mainFrame
 	local slot = mf and mf:GetAttribute('itfslotitf' .. frame.nameplateID)
 	if type(slot) == 'number' and slot > 0 then return slot end
@@ -2189,9 +2261,9 @@ function iTF:updateMainFrameAttributes(newMax)
 		for i = 1, %d do
 			local tok = iTFCurrentlyShowing[i]
 			if tok then
-				--! WotLK fix: 'itfdenyitfN' is set by the addon when the NPC is blacklisted. Such a token
-				-- must not hold a cell: the slot is freed, the frame hidden, and the token stays queued
-				-- (alive = 0) so it returns when the entry is removed.
+				--! WotLK fix: 'itfdenyitfN' ставит аддон, когда NPC в чёрном списке. Такой токен не занимает
+				-- клетку: слот свободен, рамка спрятана, токен ждёт в очереди (alive = 0) и возвращается, когда
+				-- запись уберут. В бою атрибут не пишется -- там вердикт проводит альфа (см. applyDenyAttr).
 				if self:GetAttribute('itfdeny'..tok) then
 					iTFCurrentlyShowing[i] = nil
 					iTFCurrentlyAlive[tok] = 0
@@ -2240,7 +2312,7 @@ function iTF:updateMainFrameAttributes(newMax)
 		-- working), то есть iTFCurrentlyAlive для аддона навсегда nil -- и frameSlot якорил по индексу
 		-- создания, ровно по той причине, из-за которой в сетке и оставались дырки. ЧИСЛА через границу
 		-- ходят: атрибут ставит сам сниппет и читает его же insecure-код (что чтение работает, показывает
-		-- дамп /itf deny -- он именно так видит 'itfdenyitfN'). Пишется только изменившийся слот.
+		-- дамп /itf deny -- он именно так видит зеркало слотов). Пишется только изменившийся слот.
 		for k,v in pairs(iTFCurrentlyAlive) do
 			if self:GetAttribute('itfslot'..k) ~= v then
 				self:SetAttribute('itfslot'..k, v)
