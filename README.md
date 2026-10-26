@@ -29,6 +29,7 @@
   <a href="#features">Features</a> ·
   <a href="#commands">Commands</a> ·
   <a href="#installation">Installation</a> ·
+  <a href="#license">License</a> ·
   <a href="#credits">Credits</a>
 </p>
 
@@ -149,14 +150,12 @@ labels actually see, which is the quickest way to find out why one of them is mi
 <a name="commands"></a>
 ### Commands
 
-| Command | Description |
-| --- | --- |
-| `/itf` | Open the settings window |
-| `/itf reset` | Reset everything to defaults |
-| `/itf <anything else>` | Print the command help |
-| `/awesome` | Open the window with the library controls |
-| `/interact [unit]` | Use the nearest object you are facing, or the named one (`target`, `focus`, `mouseover`, `nameplate3`) |
-| `/awdistance` | Print what the distance labels actually see |
+- `/itf` — open the settings window.
+- `/itf reset` — reset everything to defaults.
+- `/itf <anything else>` — print the command help.
+- `/awesome` — open the window with the library controls.
+- `/interact [unit]` — use the nearest object you are facing, or the named one (`target`, `focus`, `mouseover`, `nameplate3`).
+- `/awdistance` — print what the distance labels actually see.
 
 <a name="installation"></a>
 ### Installation
@@ -183,6 +182,13 @@ The final path has to look like `\Interface\AddOns\iTargetingFrames\iTargetingFr
 - Built and tested on **Warmane** (WoW 3.3.5a, Interface `30300`).
 - Developed exclusively for **Warmane**. I take no responsibility for other servers.
 
+<a name="license"></a>
+### License
+
+The original iTargetingFrames by Ironi does not declare a license. This fork
+grants no additional rights; the original authors retain their rights. The
+separate AwesomeWotLK library is GPL-3.0 by FrostAtom.
+
 <a name="credits"></a>
 ### Credits
 
@@ -200,6 +206,7 @@ The final path has to look like `\Interface\AddOns\iTargetingFrames\iTargetingFr
   <a href="#возможности">Возможности</a> ·
   <a href="#команды">Команды</a> ·
   <a href="#установка">Установка</a> ·
+  <a href="#лицензия">Лицензия</a> ·
   <a href="#благодарности">Благодарности</a>
 </p>
 
@@ -319,14 +326,12 @@ API 3.3.5a.
 <a name="команды"></a>
 ### Команды (Commands)
 
-| Команда | Описание |
-| --- | --- |
-| `/itf` | Открыть окно настроек |
-| `/itf reset` | Сбросить все настройки к значениям по умолчанию |
-| `/itf <что угодно ещё>` | Показать справку по командам |
-| `/awesome` | Открыть окно контролов библиотеки |
-| `/interact [юнит]` | Взять ближайший объект, в который вы целитесь, или названный (`target`, `focus`, `mouseover`, `nameplate3`) |
-| `/awdistance` | Напечатать то, что в действительности видят подписи дистанции |
+- `/itf` — открыть окно настроек.
+- `/itf reset` — сбросить все настройки к значениям по умолчанию.
+- `/itf <что угодно ещё>` — показать справку по командам.
+- `/awesome` — открыть окно контролов библиотеки.
+- `/interact [юнит]` — взять ближайший объект, в который вы целитесь, или названный (`target`, `focus`, `mouseover`, `nameplate3`).
+- `/awdistance` — напечатать то, что в действительности видят подписи дистанции.
 
 <a name="установка"></a>
 ### Установка
@@ -352,6 +357,13 @@ API 3.3.5a.
 
 - Собрано и протестировано на **Warmane** (WoW 3.3.5a, Interface `30300`).
 - Разрабатывалось исключительно для **Warmane**. За работоспособность на других серверах ответственности не несу.
+
+<a name="лицензия"></a>
+### Лицензия
+
+Оригинальный iTargetingFrames от Ironi не заявляет лицензию. Этот форк не даёт
+дополнительных прав; права остаются у оригинальных авторов. Отдельная
+библиотека AwesomeWotLK распространяется по GPL-3.0 (FrostAtom).
 
 <a name="благодарности"></a>
 ### Благодарности
